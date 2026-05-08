@@ -1,0 +1,2193 @@
+{
+  "group_uses": {
+    "Elderwood": {
+      "malware": [
+        "Briba",
+        "Hydraq",
+        "Linfo",
+        "Naid",
+        "Nerex",
+        "Pasam",
+        "PoisonIvy",
+        "Vasport",
+        "Wiarp"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Velvet Ant": {
+      "malware": [
+        "PlugX"
+      ],
+      "tools": [
+        "Impacket"
+      ],
+      "campaigns": []
+    },
+    "APT-C-36": {
+      "malware": [
+        "Caminho",
+        "HeartCrypt",
+        "PureCrypter",
+        "njRAT"
+      ],
+      "tools": [
+        "AsyncRAT",
+        "DCRAT",
+        "Imminent Monitor",
+        "QuasarRAT",
+        "Remcos"
+      ],
+      "campaigns": []
+    },
+    "OilRig": {
+      "malware": [
+        "BONDUPDATER",
+        "Helminth",
+        "ISMInjector",
+        "Mango",
+        "ODAgent",
+        "OilBooster",
+        "OilCheck",
+        "OopsIE",
+        "POWRUNER",
+        "PowerExchange",
+        "QUADAGENT",
+        "RDAT",
+        "RGDoor",
+        "SEASHARPEE",
+        "SampleCheck5000",
+        "SideTwist",
+        "Solar",
+        "ZeroCleare"
+      ],
+      "tools": [
+        "LaZagne",
+        "Mimikatz",
+        "Net",
+        "PsExec",
+        "Reg",
+        "Systeminfo",
+        "Tasklist",
+        "certutil",
+        "ftp",
+        "ipconfig",
+        "netstat",
+        "ngrok"
+      ],
+      "campaigns": []
+    },
+    "Lazarus Group": {
+      "malware": [
+        "AppleJeus",
+        "AuditCred",
+        "BADCALL",
+        "BLINDINGCAN",
+        "Bankshot",
+        "Cryptoistic",
+        "Dacls",
+        "Dtrack",
+        "ECCENTRICBANDWAGON",
+        "FALLCHILL",
+        "HARDRAIN",
+        "HOPLIGHT",
+        "HotCroissant",
+        "KEYMARBLE",
+        "MagicRAT",
+        "Proxysvc",
+        "RATANKBA",
+        "TAINTEDSCRIBE",
+        "TYPEFRAME",
+        "ThreatNeedle",
+        "Volgmer",
+        "WannaCry"
+      ],
+      "tools": [
+        "RawDisk",
+        "Responder",
+        "netsh",
+        "route"
+      ],
+      "campaigns": []
+    },
+    "WIRTE": {
+      "malware": [
+        "AshTag",
+        "Ferocious",
+        "Havoc",
+        "IronWind",
+        "LitePower",
+        "SameCoin"
+      ],
+      "tools": [
+        "Empire",
+        "Rclone"
+      ],
+      "campaigns": []
+    },
+    "TA505": {
+      "malware": [
+        "Amadey",
+        "Azorult",
+        "Clop",
+        "Cobalt Strike",
+        "Dridex",
+        "FlawedAmmyy",
+        "FlawedGrace",
+        "Get2",
+        "SDBbot",
+        "ServHelper",
+        "TrickBot"
+      ],
+      "tools": [
+        "AdFind",
+        "BloodHound",
+        "Mimikatz",
+        "Net",
+        "PowerSploit"
+      ],
+      "campaigns": []
+    },
+    "admin@338": {
+      "malware": [
+        "BUBBLEWRAP",
+        "LOWBALL",
+        "PoisonIvy"
+      ],
+      "tools": [
+        "Net",
+        "Systeminfo",
+        "ipconfig",
+        "netstat"
+      ],
+      "campaigns": []
+    },
+    "TA577": {
+      "malware": [
+        "Latrodectus",
+        "Pikabot",
+        "QakBot"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Suckfly": {
+      "malware": [
+        "Nidiran"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "FIN6": {
+      "malware": [
+        "Cobalt Strike",
+        "FlawedAmmyy",
+        "FrameworkPOS",
+        "GrimAgent",
+        "LockerGoga",
+        "Maze",
+        "More_eggs",
+        "Ryuk"
+      ],
+      "tools": [
+        "AdFind",
+        "Mimikatz",
+        "PsExec",
+        "Windows Credential Editor"
+      ],
+      "campaigns": []
+    },
+    "Leafminer": {
+      "malware": [],
+      "tools": [
+        "LaZagne",
+        "MailSniper",
+        "Mimikatz",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "UNC3886": {
+      "malware": [
+        "CASTLETAP",
+        "MEDUSA",
+        "MOPSLED",
+        "REPTILE",
+        "RIFLESPINE",
+        "THINCRUST",
+        "VIRTUALPIE",
+        "VIRTUALPITA"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "APT29": {
+      "malware": [
+        "BoomBox",
+        "CloudDuke",
+        "Cobalt Strike",
+        "CosmicDuke",
+        "CozyCar",
+        "EnvyScout",
+        "FatDuke",
+        "FoggyWeb",
+        "GeminiDuke",
+        "GoldFinder",
+        "GoldMax",
+        "HAMMERTOSS",
+        "LiteDuke",
+        "MiniDuke",
+        "NativeZone",
+        "OnionDuke",
+        "POSHSPY",
+        "PinchDuke",
+        "PolyglotDuke",
+        "PowerDuke",
+        "QUIETEXIT",
+        "Raindrop",
+        "RegDuke",
+        "SUNBURST",
+        "SUNSPOT",
+        "SeaDuke",
+        "Sibot",
+        "SoreFang",
+        "TEARDROP",
+        "TrailBlazer",
+        "VaporRage",
+        "WellMail",
+        "WellMess",
+        "reGeorg"
+      ],
+      "tools": [
+        "AADInternals",
+        "AdFind",
+        "BloodHound",
+        "Impacket",
+        "Mimikatz",
+        "Net",
+        "PsExec",
+        "ROADTools",
+        "SDelete",
+        "Sliver",
+        "Systeminfo",
+        "Tasklist",
+        "Tor",
+        "ipconfig",
+        "meek"
+      ],
+      "campaigns": []
+    },
+    "EXOTIC LILY": {
+      "malware": [
+        "Bazar",
+        "Bumblebee"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Andariel": {
+      "malware": [
+        "Rifdoor",
+        "gh0st RAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Wizard Spider": {
+      "malware": [
+        "Anchor",
+        "Bazar",
+        "Cobalt Strike",
+        "Conti",
+        "Diavol",
+        "Dyre",
+        "Emotet",
+        "GrimAgent",
+        "Ryuk",
+        "SystemBC",
+        "TrickBot"
+      ],
+      "tools": [
+        "AdFind",
+        "BITSAdmin",
+        "BloodHound",
+        "Empire",
+        "LaZagne",
+        "Mimikatz",
+        "Net",
+        "Nltest",
+        "Ping",
+        "PsExec",
+        "Rubeus"
+      ],
+      "campaigns": []
+    },
+    "Volt Typhoon": {
+      "malware": [
+        "VersaMem"
+      ],
+      "tools": [
+        "FRP",
+        "Impacket",
+        "Mimikatz",
+        "Net",
+        "Nltest",
+        "Ping",
+        "PsExec",
+        "Reg",
+        "Systeminfo",
+        "Tasklist",
+        "Wevtutil",
+        "certutil",
+        "cmd",
+        "ipconfig",
+        "netsh",
+        "netstat"
+      ],
+      "campaigns": []
+    },
+    "APT32": {
+      "malware": [
+        "Cobalt Strike",
+        "Denis",
+        "Goopy",
+        "KOMPROGO",
+        "Kerrdown",
+        "OSX_OCEANLOTUS.D",
+        "PHOREAL",
+        "RotaJakiro",
+        "SOUNDBITE",
+        "WINDSHIELD"
+      ],
+      "tools": [
+        "Arp",
+        "Mimikatz",
+        "Net",
+        "ipconfig",
+        "netsh"
+      ],
+      "campaigns": []
+    },
+    "POLONIUM": {
+      "malware": [
+        "CreepyDrive",
+        "CreepySnail"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Storm-1811": {
+      "malware": [
+        "Black Basta",
+        "Cobalt Strike",
+        "QakBot"
+      ],
+      "tools": [
+        "BITSAdmin",
+        "Impacket",
+        "PsExec",
+        "Quick Assist"
+      ],
+      "campaigns": []
+    },
+    "Ajax Security Team": {
+      "malware": [],
+      "tools": [
+        "Havij",
+        "sqlmap"
+      ],
+      "campaigns": []
+    },
+    "BlackTech": {
+      "malware": [
+        "Flagpro",
+        "Kivars",
+        "PLEAD",
+        "TSCookie",
+        "Waterbear"
+      ],
+      "tools": [
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "Storm-0501": {
+      "malware": [
+        "Cobalt Strike",
+        "Embargo"
+      ],
+      "tools": [
+        "AADInternals",
+        "Impacket",
+        "Net",
+        "Nltest",
+        "Rclone",
+        "Tasklist"
+      ],
+      "campaigns": []
+    },
+    "TA2541": {
+      "malware": [
+        "Agent Tesla",
+        "NETWIRE",
+        "Revenge RAT",
+        "Snip3",
+        "WarzoneRAT",
+        "jRAT",
+        "njRAT"
+      ],
+      "tools": [
+        "AsyncRAT",
+        "Imminent Monitor"
+      ],
+      "campaigns": []
+    },
+    "Molerats": {
+      "malware": [
+        "DropBook",
+        "DustySky",
+        "MoleNet",
+        "PoisonIvy",
+        "SharpStage",
+        "Spark"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "INC Ransom": {
+      "malware": [
+        "INC Ransomware"
+      ],
+      "tools": [
+        "AdFind",
+        "Net",
+        "Nltest",
+        "PsExec",
+        "Rclone",
+        "Tor",
+        "esentutl"
+      ],
+      "campaigns": []
+    },
+    "APT39": {
+      "malware": [
+        "ASPXSpy",
+        "Cadelspy",
+        "MechaFlounder",
+        "Remexi"
+      ],
+      "tools": [
+        "CrackMapExec",
+        "Mimikatz",
+        "NBTscan",
+        "PsExec",
+        "Windows Credential Editor",
+        "ftp",
+        "pwdump"
+      ],
+      "campaigns": []
+    },
+    "FIN13": {
+      "malware": [],
+      "tools": [
+        "Empire",
+        "Impacket",
+        "Mimikatz",
+        "certutil"
+      ],
+      "campaigns": []
+    },
+    "GALLIUM": {
+      "malware": [
+        "BlackMould",
+        "China Chopper",
+        "PingPull",
+        "PlugX",
+        "PoisonIvy"
+      ],
+      "tools": [
+        "HTRAN",
+        "Mimikatz",
+        "NBTscan",
+        "Net",
+        "Ping",
+        "PsExec",
+        "Reg",
+        "Windows Credential Editor",
+        "at",
+        "cmd",
+        "ipconfig"
+      ],
+      "campaigns": []
+    },
+    "HAFNIUM": {
+      "malware": [
+        "ASPXSpy",
+        "China Chopper",
+        "Tarrask"
+      ],
+      "tools": [
+        "Covenant",
+        "Impacket",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "Transparent Tribe": {
+      "malware": [
+        "Crimson",
+        "DarkComet",
+        "ObliqueRAT",
+        "Peppy",
+        "njRAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Kimsuky": {
+      "malware": [
+        "Amadey",
+        "AppleSeed",
+        "BabyShark",
+        "Brave Prince",
+        "GoBear",
+        "Gold Dragon",
+        "Gomir",
+        "HTTPTroy",
+        "KGH_SPY",
+        "NOKKI",
+        "TRANSLATEXT",
+        "Troll Stealer",
+        "gh0st RAT"
+      ],
+      "tools": [
+        "CSPY Downloader",
+        "Mimikatz",
+        "PsExec",
+        "QuasarRAT",
+        "certutil",
+        "schtasks"
+      ],
+      "campaigns": []
+    },
+    "FIN7": {
+      "malware": [
+        "BOOSTWRITE",
+        "Carbanak",
+        "Cobalt Strike",
+        "GRIFFON",
+        "HALFBAKED",
+        "JSS Loader",
+        "Lizar",
+        "Maze",
+        "POWERSOURCE",
+        "Pillowmint",
+        "RDFSNIFFER",
+        "REvil",
+        "SQLRat",
+        "SystemBC",
+        "TEXTMATE"
+      ],
+      "tools": [
+        "AdFind",
+        "CrackMapExec",
+        "Mimikatz",
+        "PowerSploit"
+      ],
+      "campaigns": []
+    },
+    "MirrorFace": {
+      "malware": [
+        "Cobalt Strike",
+        "DOWNIISSA",
+        "HiddenFace",
+        "LODEINFO",
+        "MirrorStealer",
+        "NOOPLDR",
+        "ROAMINGHOUSE",
+        "UPPERCUT"
+      ],
+      "tools": [
+        "BITSAdmin",
+        "Net",
+        "Nltest",
+        "Ping",
+        "Tasklist",
+        "Wevtutil",
+        "ipconfig",
+        "nbtstat"
+      ],
+      "campaigns": []
+    },
+    "APT30": {
+      "malware": [
+        "BACKSPACE",
+        "FLASHFLOOD",
+        "NETEAGLE",
+        "SHIPSHAPE",
+        "SPACESHIP"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Turla": {
+      "malware": [
+        "Carbon",
+        "ComRAT",
+        "Crutch",
+        "Epic",
+        "Gazer",
+        "HyperStack",
+        "KOPILUWAK",
+        "Kazuar",
+        "LightNeuron",
+        "LunarLoader",
+        "LunarMail",
+        "LunarWeb",
+        "Mosquito",
+        "Penquin",
+        "PowerStallion",
+        "TinyTurla",
+        "Uroburos"
+      ],
+      "tools": [
+        "Arp",
+        "Empire",
+        "IronNetInjector",
+        "Mimikatz",
+        "NBTscan",
+        "Net",
+        "PsExec",
+        "Reg",
+        "Systeminfo",
+        "Tasklist",
+        "certutil",
+        "nbtstat",
+        "netstat"
+      ],
+      "campaigns": []
+    },
+    "Earth Lusca": {
+      "malware": [
+        "Cobalt Strike",
+        "ShadowPad",
+        "Winnti for Linux"
+      ],
+      "tools": [
+        "Mimikatz",
+        "NBTscan",
+        "Nltest",
+        "PowerSploit",
+        "Tasklist",
+        "certutil"
+      ],
+      "campaigns": []
+    },
+    "Agrius": {
+      "malware": [
+        "ASPXSpy",
+        "Apostle",
+        "BFG Agonizer",
+        "DEADWOOD",
+        "IPsec Helper",
+        "Moneybird",
+        "MultiLayer Wiper"
+      ],
+      "tools": [
+        "Mimikatz",
+        "NBTscan"
+      ],
+      "campaigns": []
+    },
+    "APT42": {
+      "malware": [
+        "NICECURL",
+        "TAMECAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Chimera": {
+      "malware": [
+        "Cobalt Strike"
+      ],
+      "tools": [
+        "BloodHound",
+        "Mimikatz",
+        "Net",
+        "PsExec",
+        "esentutl"
+      ],
+      "campaigns": []
+    },
+    "Play": {
+      "malware": [
+        "Cobalt Strike",
+        "Playcrypt"
+      ],
+      "tools": [
+        "AdFind",
+        "BloodHound",
+        "Empire",
+        "Mimikatz",
+        "Nltest",
+        "PsExec",
+        "Wevtutil"
+      ],
+      "campaigns": []
+    },
+    "BITTER": {
+      "malware": [
+        "ZxxZ"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "MuddyWater": {
+      "malware": [
+        "Fooder",
+        "LP-Notes",
+        "Mori",
+        "MuddyViper",
+        "POWERSTATS",
+        "PowGoop",
+        "SHARPSTATS",
+        "STARWHALE",
+        "Small Sieve",
+        "Tsundere Botnet"
+      ],
+      "tools": [
+        "ConnectWise",
+        "CrackMapExec",
+        "Empire",
+        "Koadic",
+        "LaZagne",
+        "Mimikatz",
+        "Out1",
+        "PowerSploit",
+        "Rclone",
+        "RemoteUtilities"
+      ],
+      "campaigns": []
+    },
+    "HEXANE": {
+      "malware": [
+        "DanBot",
+        "DnsSystem",
+        "Kevin",
+        "Milan",
+        "Shark"
+      ],
+      "tools": [
+        "BITSAdmin",
+        "Empire",
+        "Mimikatz",
+        "Ping",
+        "PoshC2",
+        "ipconfig",
+        "netstat"
+      ],
+      "campaigns": []
+    },
+    "Ember Bear": {
+      "malware": [
+        "P.A.S. Webshell",
+        "Saint Bot",
+        "WhisperGate",
+        "reGeorg"
+      ],
+      "tools": [
+        "BloodHound",
+        "CrackMapExec",
+        "Impacket",
+        "PsExec",
+        "Rclone",
+        "Responder",
+        "ngrok"
+      ],
+      "campaigns": []
+    },
+    "PLATINUM": {
+      "malware": [
+        "Dipsind",
+        "JPIN",
+        "adbupd"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Nomadic Octopus": {
+      "malware": [
+        "Octopus"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Putter Panda": {
+      "malware": [
+        "3PARA RAT",
+        "4H RAT",
+        "httpclient",
+        "pngdowner"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "TA551": {
+      "malware": [
+        "IcedID",
+        "QakBot",
+        "Ursnif",
+        "Valak"
+      ],
+      "tools": [
+        "Sliver"
+      ],
+      "campaigns": []
+    },
+    "Blue Mockingbird": {
+      "malware": [],
+      "tools": [
+        "FRP",
+        "Mimikatz"
+      ],
+      "campaigns": []
+    },
+    "TA459": {
+      "malware": [
+        "NetTraveler",
+        "PlugX",
+        "ZeroT",
+        "gh0st RAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Ke3chang": {
+      "malware": [
+        "MirageFox",
+        "Neoichor",
+        "Okrum"
+      ],
+      "tools": [
+        "Mimikatz",
+        "Net",
+        "Ping",
+        "Systeminfo",
+        "Tasklist",
+        "ipconfig",
+        "netstat",
+        "spwebmember"
+      ],
+      "campaigns": []
+    },
+    "APT5": {
+      "malware": [
+        "PACEMAKER",
+        "PULSECHECK",
+        "PoisonIvy",
+        "RAPIDPULSE",
+        "SLIGHTPULSE",
+        "SLOWPULSE",
+        "Skeleton Key",
+        "gh0st RAT"
+      ],
+      "tools": [
+        "Mimikatz",
+        "Net",
+        "PcShare",
+        "Tasklist",
+        "netstat"
+      ],
+      "campaigns": []
+    },
+    "APT1": {
+      "malware": [
+        "BISCUIT",
+        "CALENDAR",
+        "GLOOXMAIL",
+        "PoisonIvy",
+        "Seasalt",
+        "WEBC2"
+      ],
+      "tools": [
+        "Cachedump",
+        "Lslsass",
+        "Mimikatz",
+        "Net",
+        "Pass-The-Hash Toolkit",
+        "PsExec",
+        "Tasklist",
+        "gsecdump",
+        "ipconfig",
+        "pwdump",
+        "xCmd"
+      ],
+      "campaigns": []
+    },
+    "APT28": {
+      "malware": [
+        "ADVSTORESHELL",
+        "CHOPSTICK",
+        "CORESHELL",
+        "Cannon",
+        "DealersChoice",
+        "Downdelph",
+        "Drovorub",
+        "Fysbis",
+        "HIDEDRV",
+        "JHUHUGIT",
+        "Komplex",
+        "LAMEHUG",
+        "LoJax",
+        "OLDBAIT",
+        "USBStealer",
+        "XAgentOSX",
+        "XTunnel",
+        "Zebrocy",
+        "reGeorg"
+      ],
+      "tools": [
+        "Forfiles",
+        "Koadic",
+        "Mimikatz",
+        "Net",
+        "Responder",
+        "Tor",
+        "Wevtutil",
+        "Winexe",
+        "certutil",
+        "cipher.exe"
+      ],
+      "campaigns": []
+    },
+    "Naikon": {
+      "malware": [
+        "Aria-body",
+        "HDoor",
+        "Nebulae",
+        "RARSTONE",
+        "RainyDay",
+        "SslMM",
+        "Sys10",
+        "WinMM"
+      ],
+      "tools": [
+        "Net",
+        "Ping",
+        "PsExec",
+        "Systeminfo",
+        "Tasklist",
+        "ftp",
+        "netsh"
+      ],
+      "campaigns": []
+    },
+    "Moses Staff": {
+      "malware": [
+        "DCSrv",
+        "PyDCrypt",
+        "StrifeWater"
+      ],
+      "tools": [
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "APT38": {
+      "malware": [
+        "DarkComet",
+        "ECCENTRICBANDWAGON",
+        "HOPLIGHT",
+        "KillDisk"
+      ],
+      "tools": [
+        "Mimikatz",
+        "Net"
+      ],
+      "campaigns": []
+    },
+    "menuPass": {
+      "malware": [
+        "ChChes",
+        "Cobalt Strike",
+        "Ecipekac",
+        "EvilGrab",
+        "FYAnti",
+        "HUI Loader",
+        "P8RAT",
+        "PlugX",
+        "PoisonIvy",
+        "RedLeaves",
+        "SNUGRIDE",
+        "SodaMaster",
+        "UPPERCUT"
+      ],
+      "tools": [
+        "AdFind",
+        "Impacket",
+        "Mimikatz",
+        "Net",
+        "Ping",
+        "PowerSploit",
+        "PsExec",
+        "QuasarRAT",
+        "certutil",
+        "cmd",
+        "esentutl",
+        "pwdump"
+      ],
+      "campaigns": []
+    },
+    "Contagious Interview": {
+      "malware": [
+        "BeaverTail",
+        "HexEval Loader",
+        "InvisibleFerret",
+        "XORIndex Loader"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Aquatic Panda": {
+      "malware": [
+        "Cobalt Strike",
+        "ShadowPad",
+        "Winnti for Linux",
+        "Winnti for Windows",
+        "njRAT"
+      ],
+      "tools": [
+        "Wevtutil"
+      ],
+      "campaigns": []
+    },
+    "Saint Bear": {
+      "malware": [
+        "OutSteel",
+        "Saint Bot"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Sandworm Team": {
+      "malware": [
+        "AcidPour",
+        "AcidRain",
+        "Bad Rabbit",
+        "BlackEnergy",
+        "Cobalt Strike",
+        "Cyclops Blink",
+        "Exaramel for Linux",
+        "Exaramel for Windows",
+        "GreyEnergy",
+        "Industroyer",
+        "Industroyer2",
+        "Kapeka",
+        "KillDisk",
+        "Neo-reGeorg",
+        "NotPetya",
+        "Olympic Destroyer",
+        "P.A.S. Webshell",
+        "Prestige",
+        "VPNFilter"
+      ],
+      "tools": [
+        "Empire",
+        "Impacket",
+        "Invoke-PSImage",
+        "Mimikatz",
+        "Net",
+        "PoshC2",
+        "PsExec",
+        "SDelete"
+      ],
+      "campaigns": []
+    },
+    "Daggerfly": {
+      "malware": [
+        "MacMa",
+        "MgBot",
+        "Nightdoor",
+        "PlugX"
+      ],
+      "tools": [
+        "BITSAdmin",
+        "Reg"
+      ],
+      "campaigns": []
+    },
+    "APT33": {
+      "malware": [
+        "AutoIt backdoor",
+        "DEADWOOD",
+        "NETWIRE",
+        "NanoCore",
+        "POWERTON",
+        "StoneDrill",
+        "TURNEDUP"
+      ],
+      "tools": [
+        "Empire",
+        "LaZagne",
+        "Mimikatz",
+        "Net",
+        "PoshC2",
+        "PowerSploit",
+        "Pupy",
+        "Ruler",
+        "ftp"
+      ],
+      "campaigns": []
+    },
+    "Lotus Blossom": {
+      "malware": [
+        "Elise",
+        "Emissary",
+        "Hannotog",
+        "Sagerunex"
+      ],
+      "tools": [
+        "AdFind",
+        "Impacket",
+        "NBTscan",
+        "Ping",
+        "certutil"
+      ],
+      "campaigns": []
+    },
+    "Mustang Panda": {
+      "malware": [
+        "BOOKWORM",
+        "CANONSTAGER",
+        "CLAIMLOADER",
+        "China Chopper",
+        "Cobalt Strike",
+        "CorKLOG",
+        "HIUPAN",
+        "PAKLOG",
+        "PUBLOAD",
+        "PlugX",
+        "PoisonIvy",
+        "RCSession",
+        "STATICPLUGIN",
+        "ShadowPad",
+        "SplatCloak",
+        "SplatDropper",
+        "StarProxy",
+        "TONESHELL"
+      ],
+      "tools": [
+        "AdFind",
+        "Impacket",
+        "Mimikatz",
+        "NBTscan",
+        "Wevtutil"
+      ],
+      "campaigns": []
+    },
+    "Silence": {
+      "malware": [],
+      "tools": [
+        "Empire",
+        "SDelete",
+        "Winexe"
+      ],
+      "campaigns": []
+    },
+    "APT41": {
+      "malware": [
+        "ASPXSpy",
+        "BLACKCOFFEE",
+        "China Chopper",
+        "Cobalt Strike",
+        "DUSTPAN",
+        "DUSTTRAP",
+        "Derusbi",
+        "KEYPLUG",
+        "LightSpy",
+        "MESSAGETAP",
+        "MOPSLED",
+        "PlugX",
+        "ROCKBOOT",
+        "ShadowPad",
+        "Winnti for Linux",
+        "ZxShell",
+        "gh0st RAT",
+        "njRAT"
+      ],
+      "tools": [
+        "BITSAdmin",
+        "Empire",
+        "Impacket",
+        "Mimikatz",
+        "Net",
+        "Ping",
+        "PowerSploit",
+        "certutil",
+        "dsquery",
+        "ftp",
+        "ipconfig",
+        "netstat",
+        "pwdump",
+        "sqlmap"
+      ],
+      "campaigns": []
+    },
+    "APT3": {
+      "malware": [
+        "OSInfo",
+        "PlugX",
+        "RemoteCMD",
+        "SHOTPUT"
+      ],
+      "tools": [
+        "LaZagne",
+        "schtasks"
+      ],
+      "campaigns": []
+    },
+    "Cleaver": {
+      "malware": [
+        "Net Crawler",
+        "TinyZBot"
+      ],
+      "tools": [
+        "Mimikatz",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "DarkHydrus": {
+      "malware": [
+        "Cobalt Strike",
+        "RogueRobin"
+      ],
+      "tools": [
+        "Mimikatz"
+      ],
+      "campaigns": []
+    },
+    "Evilnum": {
+      "malware": [
+        "EVILNUM",
+        "More_eggs"
+      ],
+      "tools": [
+        "LaZagne"
+      ],
+      "campaigns": []
+    },
+    "Dragonfly": {
+      "malware": [
+        "Backdoor.Oldrea",
+        "Trojan.Karagany"
+      ],
+      "tools": [
+        "CrackMapExec",
+        "Impacket",
+        "MCMD",
+        "Mimikatz",
+        "Net",
+        "PsExec",
+        "Reg",
+        "netsh"
+      ],
+      "campaigns": []
+    },
+    "APT37": {
+      "malware": [
+        "BLUELIGHT",
+        "CORALDECK",
+        "Cobalt Strike",
+        "DOGCALL",
+        "Final1stspy",
+        "HAPPYWORK",
+        "KARAE",
+        "NavRAT",
+        "POORAIM",
+        "ROKRAT",
+        "SHUTTERSPEED",
+        "SLOWDRIFT",
+        "WINERACK"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Cinnamon Tempest": {
+      "malware": [
+        "Cheerscrypt",
+        "Cobalt Strike",
+        "HUI Loader",
+        "Pandora",
+        "PlugX"
+      ],
+      "tools": [
+        "Impacket",
+        "Rclone",
+        "Sliver"
+      ],
+      "campaigns": []
+    },
+    "Axiom": {
+      "malware": [
+        "Derusbi",
+        "Hikit",
+        "Hydraq",
+        "PlugX",
+        "PoisonIvy",
+        "Zox",
+        "ZxShell",
+        "gh0st RAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Magic Hound": {
+      "malware": [
+        "CharmPower",
+        "DownPaper",
+        "PowerLess"
+      ],
+      "tools": [
+        "FRP",
+        "Impacket",
+        "Mimikatz",
+        "Net",
+        "Ping",
+        "PsExec",
+        "Pupy",
+        "Systeminfo",
+        "ipconfig",
+        "netsh"
+      ],
+      "campaigns": []
+    },
+    "Tropic Trooper": {
+      "malware": [
+        "KeyBoy",
+        "PoisonIvy",
+        "ShadowPad",
+        "USBferry",
+        "YAHOYAH"
+      ],
+      "tools": [
+        "BITSAdmin"
+      ],
+      "campaigns": []
+    },
+    "Moonstone Sleet": {
+      "malware": [
+        "Qilin"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Patchwork": {
+      "malware": [
+        "AutoIt backdoor",
+        "BADNEWS",
+        "BackConfig",
+        "NDiskMonitor",
+        "TINYTYPHON",
+        "Unknown Logger"
+      ],
+      "tools": [
+        "PowerSploit",
+        "QuasarRAT"
+      ],
+      "campaigns": []
+    },
+    "FIN10": {
+      "malware": [],
+      "tools": [
+        "Empire"
+      ],
+      "campaigns": []
+    },
+    "BackdoorDiplomacy": {
+      "malware": [
+        "China Chopper",
+        "Turian"
+      ],
+      "tools": [
+        "Mimikatz",
+        "NBTscan",
+        "QuasarRAT"
+      ],
+      "campaigns": []
+    },
+    "FIN8": {
+      "malware": [
+        "BADHATCH",
+        "PUNCHBUGGY",
+        "PUNCHTRACK",
+        "Ragnar Locker",
+        "Sardonic"
+      ],
+      "tools": [
+        "Impacket",
+        "Net",
+        "Nltest",
+        "Ping",
+        "PsExec",
+        "dsquery"
+      ],
+      "campaigns": []
+    },
+    "LazyScripter": {
+      "malware": [
+        "KOCTOPUS",
+        "njRAT"
+      ],
+      "tools": [
+        "Empire",
+        "Koadic",
+        "QuasarRAT",
+        "Remcos",
+        "ngrok"
+      ],
+      "campaigns": []
+    },
+    "Deep Panda": {
+      "malware": [
+        "Derusbi",
+        "Mivast",
+        "Sakula",
+        "StreamEx"
+      ],
+      "tools": [
+        "Net",
+        "Ping",
+        "Tasklist"
+      ],
+      "campaigns": []
+    },
+    "Leviathan": {
+      "malware": [
+        "BADFLICK",
+        "BLACKCOFFEE",
+        "China Chopper",
+        "Cobalt Strike",
+        "Derusbi",
+        "HOMEFRY",
+        "MURKYTOP",
+        "NanHaiShu",
+        "Orz",
+        "gh0st RAT"
+      ],
+      "tools": [
+        "BITSAdmin",
+        "Empire",
+        "Net",
+        "PowerSploit",
+        "Tor",
+        "Windows Credential Editor",
+        "at"
+      ],
+      "campaigns": []
+    },
+    "Rancor": {
+      "malware": [
+        "DDKONG",
+        "PLAINTEE"
+      ],
+      "tools": [
+        "Reg",
+        "certutil"
+      ],
+      "campaigns": []
+    },
+    "BRONZE BUTLER": {
+      "malware": [
+        "ABK",
+        "Avenger",
+        "BBK",
+        "Daserf",
+        "ShadowPad",
+        "build_downer",
+        "down_new"
+      ],
+      "tools": [
+        "Mimikatz",
+        "Net",
+        "Windows Credential Editor",
+        "at",
+        "cmd",
+        "gsecdump",
+        "schtasks"
+      ],
+      "campaigns": []
+    },
+    "DarkVishnya": {
+      "malware": [],
+      "tools": [
+        "PsExec",
+        "Winexe"
+      ],
+      "campaigns": []
+    },
+    "Threat Group-3390": {
+      "malware": [
+        "ASPXSpy",
+        "China Chopper",
+        "Clambling",
+        "Cobalt Strike",
+        "HTTPBrowser",
+        "HyperBro",
+        "Pandora",
+        "PlugX",
+        "RCSession",
+        "SysUpdate",
+        "ZxShell",
+        "gh0st RAT"
+      ],
+      "tools": [
+        "Impacket",
+        "Mimikatz",
+        "NBTscan",
+        "Net",
+        "Systeminfo",
+        "Tasklist",
+        "Windows Credential Editor",
+        "certutil",
+        "gsecdump",
+        "ipconfig",
+        "netstat",
+        "pwdump"
+      ],
+      "campaigns": []
+    },
+    "Thrip": {
+      "malware": [
+        "Catchamas"
+      ],
+      "tools": [
+        "Mimikatz",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "Dark Caracal": {
+      "malware": [
+        "Bandook",
+        "CrossRAT",
+        "FinFisher"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Gamaredon Group": {
+      "malware": [
+        "PowerPunch",
+        "Pteranodon",
+        "QuietSieve"
+      ],
+      "tools": [
+        "Ping",
+        "Reg",
+        "Remcos"
+      ],
+      "campaigns": []
+    },
+    "Winnti Group": {
+      "malware": [
+        "PipeMon",
+        "PlugX",
+        "Winnti for Windows"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "PROMETHIUM": {
+      "malware": [
+        "StrongPity",
+        "Truvasys"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Orangeworm": {
+      "malware": [
+        "Kwampirs"
+      ],
+      "tools": [
+        "Arp",
+        "Net",
+        "Systeminfo",
+        "cmd",
+        "ipconfig",
+        "netstat",
+        "route"
+      ],
+      "campaigns": []
+    },
+    "Ferocious Kitten": {
+      "malware": [
+        "MarkiRAT"
+      ],
+      "tools": [
+        "BITSAdmin"
+      ],
+      "campaigns": []
+    },
+    "PittyTiger": {
+      "malware": [
+        "Lurid",
+        "PoisonIvy",
+        "gh0st RAT"
+      ],
+      "tools": [
+        "Mimikatz",
+        "gsecdump"
+      ],
+      "campaigns": []
+    },
+    "Akira": {
+      "malware": [
+        "Akira",
+        "Akira _v2",
+        "Megazord"
+      ],
+      "tools": [
+        "AdFind",
+        "LaZagne",
+        "Mimikatz",
+        "PsExec",
+        "Rclone"
+      ],
+      "campaigns": []
+    },
+    "Higaisa": {
+      "malware": [
+        "PlugX",
+        "gh0st RAT"
+      ],
+      "tools": [
+        "certutil"
+      ],
+      "campaigns": []
+    },
+    "Tonto Team": {
+      "malware": [
+        "Bisonal",
+        "ShadowPad"
+      ],
+      "tools": [
+        "LaZagne",
+        "Mimikatz",
+        "NBTscan",
+        "gsecdump"
+      ],
+      "campaigns": []
+    },
+    "FIN5": {
+      "malware": [
+        "FLIPSIDE",
+        "RawPOS"
+      ],
+      "tools": [
+        "PsExec",
+        "SDelete",
+        "Windows Credential Editor",
+        "pwdump"
+      ],
+      "campaigns": []
+    },
+    "Medusa Group": {
+      "malware": [
+        "Medusa Ransomware"
+      ],
+      "tools": [
+        "Mimikatz",
+        "PsExec",
+        "Rclone",
+        "certutil"
+      ],
+      "campaigns": []
+    },
+    "Aoqin Dragon": {
+      "malware": [
+        "Heyoka Backdoor",
+        "Mongall"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Scattered Spider": {
+      "malware": [
+        "BlackCat",
+        "Raccoon Stealer",
+        "WarzoneRAT"
+      ],
+      "tools": [
+        "ConnectWise",
+        "LaZagne",
+        "Mimikatz",
+        "Rclone",
+        "Tor",
+        "ngrok"
+      ],
+      "campaigns": []
+    },
+    "Cobalt Group": {
+      "malware": [
+        "Cobalt Strike",
+        "More_eggs",
+        "SpicyOmelette"
+      ],
+      "tools": [
+        "Mimikatz",
+        "PsExec",
+        "SDelete"
+      ],
+      "campaigns": []
+    },
+    "Threat Group-1314": {
+      "malware": [],
+      "tools": [
+        "Net",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "Windshift": {
+      "malware": [
+        "WindTail"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "MoustachedBouncer": {
+      "malware": [
+        "Disco",
+        "NightClub",
+        "SharpDisco"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "IndigoZebra": {
+      "malware": [
+        "BoxCaon",
+        "PoisonIvy",
+        "xCaon"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Star Blizzard": {
+      "malware": [
+        "Spica"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Group5": {
+      "malware": [
+        "NanoCore",
+        "njRAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Malteiro": {
+      "malware": [
+        "Mispadu"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "ToddyCat": {
+      "malware": [
+        "China Chopper",
+        "Cobalt Strike",
+        "LoFiSe",
+        "Ninja",
+        "Pcexter",
+        "Samurai"
+      ],
+      "tools": [
+        "Net",
+        "Ping",
+        "netstat"
+      ],
+      "campaigns": []
+    },
+    "TEMP.Veles": {
+      "malware": [],
+      "tools": [
+        "Mimikatz",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "Volatile Cedar": {
+      "malware": [
+        "Caterpillar WebShell",
+        "Explosive"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "APT19": {
+      "malware": [
+        "Cobalt Strike"
+      ],
+      "tools": [
+        "Empire"
+      ],
+      "campaigns": []
+    },
+    "Sowbug": {
+      "malware": [
+        "Felismus",
+        "Starloader"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "BlackByte": {
+      "malware": [
+        "BlackByte 2.0 Ransomware",
+        "BlackByte Ransomware",
+        "Cobalt Strike",
+        "Exbyte"
+      ],
+      "tools": [
+        "AdFind",
+        "Arp",
+        "Mimikatz",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "Windigo": {
+      "malware": [
+        "Ebury"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "RedEcho": {
+      "malware": [
+        "ShadowPad"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Fox Kitten": {
+      "malware": [
+        "China Chopper",
+        "Pay2Key",
+        "SystemBC"
+      ],
+      "tools": [
+        "PsExec",
+        "ngrok"
+      ],
+      "campaigns": []
+    },
+    "SilverTerrier": {
+      "malware": [
+        "Agent Tesla",
+        "DarkComet",
+        "Lokibot",
+        "NETWIRE",
+        "NanoCore"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Mofang": {
+      "malware": [
+        "ShimRat"
+      ],
+      "tools": [
+        "ShimRatReporter"
+      ],
+      "campaigns": []
+    },
+    "Inception": {
+      "malware": [
+        "PowerShower",
+        "VBShower"
+      ],
+      "tools": [
+        "LaZagne"
+      ],
+      "campaigns": []
+    },
+    "TeamTNT": {
+      "malware": [
+        "Hildegard"
+      ],
+      "tools": [
+        "LaZagne",
+        "MimiPenguin",
+        "Peirates"
+      ],
+      "campaigns": []
+    },
+    "Gorgon Group": {
+      "malware": [
+        "NanoCore",
+        "njRAT"
+      ],
+      "tools": [
+        "QuasarRAT",
+        "Remcos"
+      ],
+      "campaigns": []
+    },
+    "LuminousMoth": {
+      "malware": [
+        "Cobalt Strike",
+        "PlugX"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "APT12": {
+      "malware": [
+        "Ixeshe",
+        "RIPTIDE"
+      ],
+      "tools": [
+        "HTRAN"
+      ],
+      "campaigns": []
+    },
+    "Scarlet Mimic": {
+      "malware": [
+        "CallMe",
+        "FakeM",
+        "MobileOrder",
+        "Psylo"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Water Galura": {
+      "malware": [
+        "Qilin"
+      ],
+      "tools": [
+        "Tor"
+      ],
+      "campaigns": []
+    },
+    "APT18": {
+      "malware": [
+        "HTTPBrowser",
+        "Pisloader",
+        "gh0st RAT",
+        "hcdLoader"
+      ],
+      "tools": [
+        "cmd"
+      ],
+      "campaigns": []
+    },
+    "Indrik Spider": {
+      "malware": [
+        "BitPaymer",
+        "Cobalt Strike",
+        "Dridex",
+        "WastedLocker"
+      ],
+      "tools": [
+        "Donut",
+        "Empire",
+        "Mimikatz",
+        "PsExec"
+      ],
+      "campaigns": []
+    },
+    "LAPSUS$": {
+      "malware": [],
+      "tools": [
+        "Mimikatz"
+      ],
+      "campaigns": []
+    },
+    "TA578": {
+      "malware": [
+        "Bumblebee",
+        "IcedID",
+        "Latrodectus"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "CopyKittens": {
+      "malware": [
+        "Cobalt Strike",
+        "Matryoshka",
+        "TDTESS"
+      ],
+      "tools": [
+        "Empire"
+      ],
+      "campaigns": []
+    },
+    "SideCopy": {
+      "malware": [
+        "Action RAT",
+        "AuTo Stealer"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "The White Company": {
+      "malware": [
+        "NETWIRE",
+        "Revenge RAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "NEODYMIUM": {
+      "malware": [
+        "Wingbird"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "DragonOK": {
+      "malware": [
+        "PlugX",
+        "PoisonIvy"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Carbanak": {
+      "malware": [
+        "Carbanak"
+      ],
+      "tools": [
+        "Mimikatz",
+        "PsExec",
+        "netsh"
+      ],
+      "campaigns": []
+    },
+    "Mustard Tempest": {
+      "malware": [
+        "Cobalt Strike",
+        "SocGholish"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "RTM": {
+      "malware": [
+        "RTM"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Confucius": {
+      "malware": [
+        "WarzoneRAT"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Sea Turtle": {
+      "malware": [
+        "SnappyTCP"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "APT17": {
+      "malware": [
+        "BLACKCOFFEE"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "GOLD SOUTHFIELD": {
+      "malware": [
+        "REvil"
+      ],
+      "tools": [
+        "ConnectWise"
+      ],
+      "campaigns": []
+    },
+    "APT16": {
+      "malware": [
+        "ELMER"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Metador": {
+      "malware": [
+        "Mafalda",
+        "metaMain"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "CURIUM": {
+      "malware": [
+        "IMAPLoader"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Moafee": {
+      "malware": [
+        "PoisonIvy"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Salt Typhoon": {
+      "malware": [
+        "JumbledPath"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Sidewinder": {
+      "malware": [],
+      "tools": [
+        "Koadic"
+      ],
+      "campaigns": []
+    },
+    "Whitefly": {
+      "malware": [],
+      "tools": [
+        "Mimikatz"
+      ],
+      "campaigns": []
+    },
+    "Strider": {
+      "malware": [
+        "Remsec"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "APT-C-23": {
+      "malware": [
+        "Micropsia"
+      ],
+      "tools": [],
+      "campaigns": []
+    },
+    "Machete": {
+      "malware": [
+        "Machete"
+      ],
+      "tools": [],
+      "campaigns": []
+    }
+  }
+}

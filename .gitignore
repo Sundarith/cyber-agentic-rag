@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# CVE raw data — too large for git (3.4GB+), re-download from NVD
+data/raw/cves/
+data/raw/cve_data/
+data/raw/cvelistV5/
+
+# Generated files — rebuilt automatically by build_*.py and better_rag.py
+data/processed/cve_chunks.jsonl
+data/processed/chunk_embs.npy
+
+# OS
+.DS_Store
