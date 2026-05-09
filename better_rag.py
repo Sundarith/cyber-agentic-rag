@@ -643,3 +643,5 @@ if __name__ == "__main__":
         history.append({"q": q, "a": answer, "retrieved": retrieved_chunks, "shown_text": shown_text})
         print(answer)
         print()
+        print("─" * 60)
+        print()
