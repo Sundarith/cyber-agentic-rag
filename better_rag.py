@@ -507,6 +507,16 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
                 retrieved_chunks.append(id_to_chunk[_cid.upper()])
                 print(f"[Bridge injection: {_capec_id} → {_cid}]\n")
 
+    # Mitigation filter: strip M#### chunks that are not graph-neighbors of the queried
+    # technique. Prevents unrelated mitigations (e.g. M1055 "Do Not Mitigate") from
+    # polluting the answer when the technique has a specific mitigation (e.g. M1024).
+    if _tech_m and MITIGATION_RE.search(question):
+        _tech_id_mit = _tech_m.group(0).upper()
+        _tech_neighbors = chunk_graph.get(_tech_id_mit, set())
+        retrieved_chunks = [c for c in retrieved_chunks
+                            if not (c.get("type") == "mitigation"
+                                    and c.get("identifier", "").upper() not in _tech_neighbors)]
+
     # Universal Knowledge Graph Traversal
     # Determine depth: 2-hop for complex queries (Deep Search), 1-hop otherwise.
     is_deep = bool(ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question) or CAPEC_RE.search(question))
@@ -553,6 +563,12 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
             if CAPEC_RE.search(question):
                 for idx_n, nc in enumerate(n_chunks):
                     if nc.get("identifier", "").upper().startswith("CAPEC-"):
+                        scores[idx_n] += 2.0
+
+            # For mitigation queries, prefer M#### chunks in neighbor re-ranking
+            if MITIGATION_RE.search(question):
+                for idx_n, nc in enumerate(n_chunks):
+                    if nc.get("type") == "mitigation":
                         scores[idx_n] += 2.0
 
             # Take top N
