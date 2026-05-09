@@ -234,18 +234,20 @@ def retrieve(query: str, k: int = TOP_K) -> list:
                 combined[i] += 2.0
 
     # 5. Fuzzy name boost (handle typos like 'blusmacking')
+    # Skip for long queries (CVE descriptions, prompts) — common English words like
+    # "vulnerability", "server", "exploit" match technique names and flood the top-K.
     query_words = _tokenize(query)
-    for word in query_words:
-        if len(word) < 5: continue
-        # Find close matches in our name index
-        matches = difflib.get_close_matches(word, [tn[0] for tn in _tech_name_index], n=1, cutoff=0.85)
-        if matches:
-            best_match = matches[0]
-            for name, idx in _tech_name_index:
-                if name == best_match:
-                    combined[idx] += 3.0
-                    print(f"[Fuzzy match: '{word}' → '{best_match}']")
-                    break
+    if len(query_words) <= 15:
+        for word in query_words:
+            if len(word) < 5: continue
+            matches = difflib.get_close_matches(word, [tn[0] for tn in _tech_name_index], n=1, cutoff=0.85)
+            if matches:
+                best_match = matches[0]
+                for name, idx in _tech_name_index:
+                    if name == best_match:
+                        combined[idx] += 3.0
+                        print(f"[Fuzzy match: '{word}' → '{best_match}']")
+                        break
 
     # Boost exact ID matches to rank 1 — small nudge only, BM25 IDF already handles
     # unique IDs well. A massive boost monopolizes all slots with noise.
