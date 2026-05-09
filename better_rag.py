@@ -365,7 +365,7 @@ TARGET_TOOLS_RE   = re.compile(r'\btools?\b', re.IGNORECASE)
 TARGET_GROUPS_RE  = re.compile(r'\b(groups?|actors?|threat\s+actors?)\b', re.IGNORECASE)
 ROOT_CAUSE_RE     = re.compile(r'\b(root cause|vulnerability|flaw|cwe|bug|code|architectural|improper|validation)\b', re.IGNORECASE)
 DETECTION_RE      = re.compile(r'\b(detect|monitor|analytic|log|sensor|data component)\b', re.IGNORECASE)
-MITIGATION_RE     = re.compile(r'\b(mitigat|prevent|protect|remediate)\b', re.IGNORECASE)
+MITIGATION_RE     = re.compile(r'\b(mitigation|mitigate|prevent|protect|remediate)\b', re.IGNORECASE)
 CAPEC_RE          = re.compile(r'\b(attack patterns?|capec|exploit patterns?|attack techniques?)\b', re.IGNORECASE)
 
 
