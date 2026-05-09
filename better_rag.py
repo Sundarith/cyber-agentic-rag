@@ -360,6 +360,7 @@ def _llm(prompt: str) -> str:
 
 
 ENTITY_REVERSE_RE = re.compile(r'\b(what|which|list|show).{0,50}\b(techniques?|attacks?|tactics?|malwares?|software|tools?|groups?|actors?|do|does|use[sd]?|cause[sd]?)\b', re.IGNORECASE)
+WHAT_IS_RE        = re.compile(r'\bwhat\s+is\b', re.IGNORECASE)
 TARGET_MALWARE_RE = re.compile(r'\b(malwares?|software)\b', re.IGNORECASE)
 TARGET_TOOLS_RE   = re.compile(r'\btools?\b', re.IGNORECASE)
 TARGET_GROUPS_RE  = re.compile(r'\b(groups?|actors?|threat\s+actors?)\b', re.IGNORECASE)
@@ -419,7 +420,7 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
     # Reverse entity lookup — fires when both a reverse-question pattern AND a known entity name appear.
     # Skip when 2+ entities detected — let retrieval + LLM handle comparison/relationship queries.
     # SKIP/BYPASS if query also asks for CWEs, detection, or mitigations (complex synthesis needed).
-    if ENTITY_REVERSE_RE.search(question) and not (ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question)):
+    if ENTITY_REVERSE_RE.search(question) and not (ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question) or WHAT_IS_RE.search(question)):
         all_entities = _find_all_entities_in_query(question)
         match = _find_entity_in_query(question) if len(all_entities) < 2 else None
         if match:
