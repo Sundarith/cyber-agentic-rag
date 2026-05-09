@@ -17,6 +17,7 @@ CWE_CHUNKS    = Path("data/processed/cwe_chunks.jsonl")
 CVE_CHUNKS    = Path("data/processed/cve_chunks.jsonl")
 RELATIONS     = Path("data/processed/entity_relations.json")
 CAPEC_RELS    = Path("data/processed/capec_attack_relations.json")
+CAPEC_CWE_RELS = Path("data/processed/capec_cwe_relations.json")
 OLLAMA        = "http://localhost:11434/api/generate"
 MODEL        = "qwen2.5:7b"
 EMBEDDER     = "BAAI/bge-small-en-v1.5"
@@ -103,6 +104,12 @@ if CAPEC_RELS.exists():
     for tid, capec_ids in attack_to_capec.items():
         for cid in capec_ids:
             capec_to_attack[cid].append(tid)
+
+capec_to_cwe: dict[str, list] = {}
+if CAPEC_CWE_RELS.exists():
+    _cwr = json.loads(CAPEC_CWE_RELS.read_text())
+    capec_to_cwe = _cwr.get("capec_to_cwe", {})
+    print(f"  CAPEC→CWE bridge: {len(capec_to_cwe)} mappings loaded")
 
 # ID lookup index for instant retrieval
 id_to_chunk: dict[str, dict] = {}
@@ -240,12 +247,13 @@ def retrieve(query: str, k: int = TOP_K) -> list:
                     print(f"[Fuzzy match: '{word}' → '{best_match}']")
                     break
 
-    # guarantee exact T/M/CAPEC/CWE ID matches always rank at the top
+    # Boost exact ID matches to rank 1 — small nudge only, BM25 IDF already handles
+    # unique IDs well. A massive boost monopolizes all slots with noise.
     id_matches = re.findall(r'\b(?:[TM]\d{4}(?:\.\d{3})?|CAPEC-\d+|CWE-\d+|CVE-\d{4}-\d+)\b', query, re.IGNORECASE)
     for match in id_matches:
         for i, c in enumerate(chunks):
-            if c["identifier"].upper() == match.upper():
-                combined[i] += 10.0  # massive boost to ensure rank 1
+            if c.get("identifier", "").upper() == match.upper():
+                combined[i] += 2.0
                 break
 
     # if no ID, boost the chunk whose technique name appears verbatim in the query
@@ -263,6 +271,14 @@ def retrieve(query: str, k: int = TOP_K) -> list:
     for ent_name, ent_type in found_entities:
         idx_dict = {"group": group_to_techs, "campaign": campaign_to_techs, "malware": malware_to_techs, "tool": tool_to_techs}[ent_type]
         related_chunks = idx_dict.get(ent_name, [])
+
+        # Boost the entity chunk itself so "What is Sandworm Team?" returns G0034 directly.
+        # Score-based (not keyword routing) so multi-hop queries still work correctly.
+        for i, c in enumerate(chunks):
+            if c.get("name", "").lower() == ent_name and c.get("type") in ("group", "malware", "tool", "campaign"):
+                combined[i] += 2.0
+                break
+
         for rc in related_chunks:
             # find index of this chunk
             for i, c in enumerate(chunks):
@@ -290,12 +306,25 @@ def retrieve(query: str, k: int = TOP_K) -> list:
             if c.get("source") == "CWE" or c.get("type") in ("weakness", "category", "view"):
                 combined[i] += 0.3
 
+    # Penalize nameless chunks — they have no identifier so they can't participate
+    # in graph traversal and only add noise to the context.
+    for i, c in enumerate(chunks):
+        if not c.get("identifier"):
+            combined[i] -= 1.0
+
     # Penalize CVE chunks for non-CVE queries — they're semantically similar to
     # ATT&CK/CAPEC content and flood the top-K when no CVE ID is in the query.
     if not re.search(r'\bCVE-\d{4}-\d+\b', query, re.IGNORECASE):
         for i, c in enumerate(chunks):
             if c.get("source") == "CVE":
                 combined[i] -= 0.5
+    else:
+        # For CVE queries: suppress all CWE chunks — they're generic noise when the CVE
+        # chunk already contains the CWE info (or "n/a"). The LLM should reason from the
+        # CVE description, not pick a random quality CWE like CWE-1116.
+        for i, c in enumerate(chunks):
+            if c.get("source") == "CWE":
+                combined[i] -= 1.5
 
     top_idx  = np.argsort(-combined)[:k]
     return [(chunks[i], float(combined[i])) for i in top_idx]
@@ -336,7 +365,8 @@ TARGET_TOOLS_RE   = re.compile(r'\btools?\b', re.IGNORECASE)
 TARGET_GROUPS_RE  = re.compile(r'\b(groups?|actors?|threat\s+actors?)\b', re.IGNORECASE)
 ROOT_CAUSE_RE     = re.compile(r'\b(root cause|vulnerability|flaw|cwe|bug|code|architectural|improper|validation)\b', re.IGNORECASE)
 DETECTION_RE      = re.compile(r'\b(detect|monitor|analytic|log|sensor|data component)\b', re.IGNORECASE)
-MITIGATION_RE     = re.compile(r'\b(mitigation|prevent|protect|remediate)\b', re.IGNORECASE)
+MITIGATION_RE     = re.compile(r'\b(mitigat|prevent|protect|remediate)\b', re.IGNORECASE)
+CAPEC_RE          = re.compile(r'\b(attack patterns?|capec|exploit patterns?|attack techniques?)\b', re.IGNORECASE)
 
 
 def _techs_for_entity(name: str, entity_type: str, idx: dict) -> str:
@@ -437,11 +467,51 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
     score_info = ", ".join(f"{c['identifier'] or c.get('name', '?')} ({s:.2f})" for c, s in retrieved)
     print(f"[Hybrid search: {score_info}]\n")
 
+    # For CVE-specific queries: keep only the matched CVE chunk as context.
+    # Other chunks (random CVEs, generic CWEs) add noise — the CVE chunk already
+    # contains the description and any NVD-assigned CWE the LLM should use.
+    _cve_id_m = re.search(r'\bCVE-\d{4}-\d+\b', question, re.IGNORECASE)
+    if _cve_id_m:
+        _queried_cve = _cve_id_m.group(0).upper()
+        _cve_specific = [c for c in retrieved_chunks if c.get("identifier", "").upper() == _queried_cve]
+        if _cve_specific:
+            retrieved_chunks = _cve_specific
+
+    # Direct bridge injection: if query asks about CAPEC for a specific technique ID,
+    # inject bridge-mapped CAPECs directly — bridge mappings are explicit facts, not
+    # semantic guesses, so they should not compete in the graph traversal lottery.
+    _tech_m = re.search(r'\bT\d{4}(?:\.\d{3})?\b', question)
+    if _tech_m and CAPEC_RE.search(question):
+        _tech_id = _tech_m.group(0).upper()
+        _bridge_capecs = attack_to_capec.get(_tech_id, [])
+        for _cid in _bridge_capecs:
+            if _cid.upper() in id_to_chunk:
+                retrieved_chunks.append(id_to_chunk[_cid.upper()])
+                print(f"[Bridge injection: {_tech_id} → {_cid}]\n")
+
+    # Direct bridge injection: if query asks about CWE for a specific CAPEC ID,
+    # inject bridge-mapped CWEs directly.
+    _capec_m = re.search(r'\bCAPEC-\d+\b', question, re.IGNORECASE)
+    if _capec_m and ROOT_CAUSE_RE.search(question):
+        _capec_id = _capec_m.group(0).upper()
+        _bridge_cwes = capec_to_cwe.get(_capec_id, [])
+        if _bridge_cwes:
+            # Bridge is ground truth — strip semantically-retrieved CWE chunks so the
+            # LLM can't pick a false-positive (e.g. CWE-203 for CAPEC-203 query).
+            _bridge_cwe_ids = {cid.upper() for cid in _bridge_cwes}
+            retrieved_chunks = [c for c in retrieved_chunks
+                                if not (c.get("source") == "CWE"
+                                        and c.get("identifier", "").upper() not in _bridge_cwe_ids)]
+        for _cid in _bridge_cwes:
+            if _cid.upper() in id_to_chunk:
+                retrieved_chunks.append(id_to_chunk[_cid.upper()])
+                print(f"[Bridge injection: {_capec_id} → {_cid}]\n")
+
     # Universal Knowledge Graph Traversal
     # Determine depth: 2-hop for complex queries (Deep Search), 1-hop otherwise.
-    is_deep = bool(ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question))
+    is_deep = bool(ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question) or CAPEC_RE.search(question))
     max_neighbors = 5 if is_deep else 2
-    
+
     neighbor_ids = set()
     added_ids = set(c.get("identifier", "").upper() for c in retrieved_chunks if c.get("identifier"))
     
@@ -479,6 +549,12 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
                     if nc.get("source") == "CWE" or nc.get("identifier", "").upper().startswith("CWE-"):
                         scores[idx_n] += 2.0
 
+            # For attack-pattern queries, prefer CAPEC chunks in neighbor re-ranking
+            if CAPEC_RE.search(question):
+                for idx_n, nc in enumerate(n_chunks):
+                    if nc.get("identifier", "").upper().startswith("CAPEC-"):
+                        scores[idx_n] += 2.0
+
             # Take top N
             top_n_idx = np.argsort(scores)[-max_neighbors:][::-1]
             neighbor_chunks = [n_chunks[i] for i in top_n_idx]
@@ -502,6 +578,17 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
             context_parts.append(f"[{ctype} {c['identifier']} — {c['name']}]\n{c['text']}")
     context = "\n\n---\n\n".join(context_parts)
     
+    is_cve_query = bool(re.search(r'\bCVE-\d{4}-\d+\b', question, re.IGNORECASE))
+    cve_rule = (
+        "9. For CVE root-cause (CWE) questions: if the context lists an explicit CWE ID, state it. "
+        "If the weakness shows 'n/a' or no CWE ID, you MUST analyze the vulnerability description "
+        "and determine the most likely CWE (e.g. CWE-79 for XSS, CWE-89 for SQL injection, "
+        "CWE-416 for use-after-free, CWE-787 for out-of-bounds write, CWE-77/78 for command injection). "
+        "Always end your answer with the CWE ID on its own line. Never say 'I don't have enough information' "
+        "for CVE weakness questions."
+        if is_cve_query else ""
+    )
+
     prompt = f"""You are a Cyber Threat Intelligence expert. Answer the question based ONLY on the provided context.
 
 CRITICAL RULES:
@@ -513,6 +600,7 @@ CRITICAL RULES:
 6. Answer ONLY the current question. Do not bring in entities or facts from conversation history unless the current question references them.
 7. The [TYPE IDENTIFIER — NAME] header in each context block is the authoritative name and ID for that entry. Use those exact values. Never rename or re-identify based on training knowledge.
 8. Do not add shell commands, scripts, vendor product names, or tool recommendations that are not verbatim in the context blocks above.
+{cve_rule}
 
 Conversation history (for context only):
 {hist}
