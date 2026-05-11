@@ -13,5 +13,19 @@ data/raw/cvelistV5/
 data/processed/cve_chunks.jsonl
 data/processed/chunk_embs.npy
 
+# Third-party/local benchmark checkout
+data/cti-bench/
+
+# Local handoff/state files — not part of the public repo
+CLAUDE.md
+DECISIONS.md
+HANDOFF.md
+PLAN.md
+docs/
+
+# Local eval/debug outputs
+eval_*.log
+eval_*_debug.jsonl
+
 # OS
 .DS_Store

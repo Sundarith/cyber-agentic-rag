@@ -10,6 +10,8 @@ Usage:
     conda run -n cyber-ft python3 eval_rcm.py --nvd-mapped    # only CVEs with an official NVD cweId mapping
     conda run -n cyber-ft python3 eval_rcm.py --nvd-unmapped  # only CVEs with no NVD cweId (must reason from description)
     conda run -n cyber-ft python3 eval_rcm.py --local      # only CVEs in our DB whose GT CWE is also in our CWE chunks
+    conda run -n cyber-ft python3 eval_rcm.py 97 --nvd-unmapped --debug-failures
+    conda run -n cyber-ft python3 eval_rcm.py 100 --profile  # print retrieval/timing checkpoints
 """
 import csv
 import itertools
@@ -25,6 +27,7 @@ import better_rag
 RCM_PATH      = Path("data/cti-bench/data/cti-rcm.tsv")
 CVE_CHUNKS    = Path("data/processed/cve_chunks.jsonl")
 CVE_CWE_INDEX = Path("data/processed/cve_cwe_index.json")
+DEBUG_FAILURES_PATH = Path("eval_failures_debug.jsonl")
 SAMPLE_N  = 100
 SEED      = 42
 WORKERS   = 16  # parallel requests; vLLM continuous batching scales near-linearly until KV cache saturates
@@ -67,7 +70,7 @@ def load_cve_cwe_index() -> dict:
 
 
 def run_eval(n: int = SAMPLE_N, seed: int = SEED, matched_only: bool = False, local_only: bool = False,
-             nvd_mapped: bool = False, nvd_unmapped: bool = False):
+             nvd_mapped: bool = False, nvd_unmapped: bool = False, debug_failures: bool = False):
     random.seed(seed)
 
     rows = []
@@ -125,12 +128,21 @@ def run_eval(n: int = SAMPLE_N, seed: int = SEED, matched_only: bool = False, lo
         gt_cwe = row["GT"].strip()
         query  = row["Prompt"]  # same prompt format used to test GPT-4 in CTI-Bench paper
         nvd_mapped = bool(cve_cwe_index.get(cve_id))
+        debug_info = {} if debug_failures else None
         try:
-            answer, _, _ = better_rag.ask(query, [], eval_mode=True)
+            answer, _, _ = better_rag.ask(query, [], eval_mode=True, debug_info=debug_info)
             passed = cwe_in_answer(answer, gt_cwe)
-            return i, {"cve_id": cve_id, "gt_cwe": gt_cwe, "passed": passed, "answer": answer, "nvd_mapped": nvd_mapped}
+            result = {"cve_id": cve_id, "gt_cwe": gt_cwe, "passed": passed, "answer": answer, "nvd_mapped": nvd_mapped}
+            if debug_failures and not passed:
+                result["debug"] = debug_info
+                result["prompt"] = query
+            return i, result
         except Exception as e:
-            return i, {"cve_id": cve_id, "gt_cwe": gt_cwe, "passed": False, "error": str(e), "nvd_mapped": nvd_mapped}
+            result = {"cve_id": cve_id, "gt_cwe": gt_cwe, "passed": False, "error": str(e), "nvd_mapped": nvd_mapped}
+            if debug_failures:
+                result["debug"] = debug_info
+                result["prompt"] = query
+            return i, result
 
     _counter = itertools.count()
     _embedders = [better_rag.embedder,
@@ -182,6 +194,12 @@ def run_eval(n: int = SAMPLE_N, seed: int = SEED, matched_only: bool = False, lo
             snippet = res.get("answer", res.get("error", ""))[:100].replace("\n", " ")
             print(f"  {res['cve_id']:20s} GT={res['gt_cwe']:10s} | {snippet}")
 
+    if debug_failures:
+        with DEBUG_FAILURES_PATH.open("w", encoding="utf-8") as f:
+            for res in failures:
+                f.write(json.dumps(res) + "\n")
+        print(f"\nWrote failure debug report: {DEBUG_FAILURES_PATH}")
+
     return results, acc
 
 
@@ -191,6 +209,11 @@ if __name__ == "__main__":
     local_only    = "--local"        in args
     nvd_mapped    = "--nvd-mapped"   in args
     nvd_unmapped  = "--nvd-unmapped" in args
-    args = [a for a in args if a not in ("--matched", "--local", "--nvd-mapped", "--nvd-unmapped")]
+    debug_failures = "--debug-failures" in args
+    profile       = "--profile"      in args
+    args = [a for a in args if a not in ("--matched", "--local", "--nvd-mapped", "--nvd-unmapped", "--debug-failures", "--profile")]
     n = int(args[0]) if args else SAMPLE_N
-    run_eval(n, matched_only=matched_only, local_only=local_only, nvd_mapped=nvd_mapped, nvd_unmapped=nvd_unmapped)
+    if profile:
+        print("Profiling enabled: retrieval/timing checkpoints will be printed.")
+    run_eval(n, matched_only=matched_only, local_only=local_only, nvd_mapped=nvd_mapped,
+             nvd_unmapped=nvd_unmapped, debug_failures=debug_failures)

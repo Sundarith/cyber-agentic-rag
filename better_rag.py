@@ -3,7 +3,9 @@ Hybrid RAG (BM25 + embeddings) over ATT&CK chunks + local LLM via Ollama.
 """
 import json
 import math
+import os
 import re
+import sys
 import time
 import difflib
 import threading
@@ -28,6 +30,29 @@ BM25_B       = 0.75
 HYBRID_ALPHA = 0.5   # 0 = pure BM25, 1 = pure embedding
 TOP_K        = 8
 EMB_CACHE    = Path("data/processed/chunk_embs.npy")
+KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
+KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.6"))
+CWE_KEYWORD_ANCHORS_ENABLED = os.environ.get("CTI_RAG_CWE_KEYWORD_ANCHORS", "0") == "1"
+PROFILE = "--profile" in sys.argv or os.environ.get("CTI_RAG_PROFILE", "0") == "1"
+
+
+def _profile_print(*args, **kwargs) -> None:
+    if PROFILE:
+        print(*args, **kwargs)
+
+# High-precision CVE-description phrases. These are soft hints: they inject matching
+# CWE chunks, but do not strip competing evidence the way bridge mappings do.
+CWE_KEYWORD_ANCHORS: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(r"\b(use[- ]after[- ]free|uaf)\b", re.IGNORECASE), "CWE-416"),
+    (re.compile(r"\b(path|directory) traversal\b", re.IGNORECASE), "CWE-22"),
+    (re.compile(r"\bnull pointer dereference\b|\bnull dereference\b", re.IGNORECASE), "CWE-476"),
+    (re.compile(r"\bstack[- ]based buffer overflow\b", re.IGNORECASE), "CWE-121"),
+    (re.compile(r"\bheap[- ]based buffer overflow\b", re.IGNORECASE), "CWE-122"),
+    (re.compile(r"\b(divide|division) by zero\b", re.IGNORECASE), "CWE-369"),
+    (re.compile(r"\bout[- ]of[- ]bounds read\b", re.IGNORECASE), "CWE-125"),
+    (re.compile(r"\bout[- ]of[- ]bounds write\b", re.IGNORECASE), "CWE-787"),
+    (re.compile(r"\bunrestricted (file )?upload\b|\barbitrary file upload\b", re.IGNORECASE), "CWE-434"),
+)
 
 # ── data loading ──────────────────────────────────────────────────────────────
 
@@ -379,7 +404,7 @@ def retrieve(query: str, k: int = TOP_K) -> list:
     _r4 = time.time()
     top_idx  = np.argsort(-combined)[:k]
     _r5 = time.time()
-    print(f"  [R] enc={_r1-_r0:.2f} matmul={_r2-_r1:.2f} bm25={_r3-_r2:.2f} boosts={_r4-_r3:.2f} sort={_r5-_r4:.2f}", flush=True)
+    _profile_print(f"  [R] enc={_r1-_r0:.2f} matmul={_r2-_r1:.2f} bm25={_r3-_r2:.2f} boosts={_r4-_r3:.2f} sort={_r5-_r4:.2f}", flush=True)
     return [(chunks[i], float(combined[i])) for i in top_idx]
 
 
@@ -472,7 +497,7 @@ def _find_all_entities_in_query(question: str) -> list:
 
 
 
-def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, list, str]:
+def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict | None = None) -> tuple[str, list, str]:
     # Reverse entity lookup — fires when both a reverse-question pattern AND a known entity name appear.
     # Skip when 2+ entities detected — let retrieval + LLM handle comparison/relationship queries.
     # SKIP/BYPASS if query also asks for CWEs, detection, or mitigations (complex synthesis needed).
@@ -518,11 +543,23 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
             print(f"[Reverse entity lookup: {display} ({entity_type}) → {len(idx[name])} techniques]\n")
             return text, [], text
 
-    _t = {} if eval_mode else None
+    _t = {} if PROFILE else None
     if _t is not None: _t["start"] = time.time()
 
     retrieved = retrieve(question)
     retrieved_chunks = [c for c, _ in retrieved]
+    if debug_info is not None:
+        debug_info["initial_retrieved"] = [
+            {
+                "identifier": c.get("identifier"),
+                "name": c.get("name"),
+                "source": c.get("source"),
+                "type": c.get("type"),
+                "score": score,
+                "cwe_ids": c.get("cwe_ids", []),
+            }
+            for c, score in retrieved
+        ]
     if _t is not None: _t["retrieve"] = time.time()
 
     score_info = ", ".join(f"{c['identifier'] or c.get('name', '?')} ({s:.2f})" for c, s in retrieved)
@@ -538,6 +575,11 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
         _cve_specific = [c for c in retrieved_chunks if c.get("identifier", "").upper() == _queried_cve]
         if _cve_specific:
             retrieved_chunks = _cve_specific
+        if debug_info is not None:
+            debug_info["cve_id_filter"] = {
+                "queried_cve": _queried_cve,
+                "matched": bool(_cve_specific),
+            }
 
     # Direct bridge injection: if query asks about CAPEC for a specific technique ID,
     # inject bridge-mapped CAPECs directly — bridge mappings are explicit facts, not
@@ -546,6 +588,8 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
     if _tech_m and CAPEC_RE.search(question):
         _tech_id = _tech_m.group(0).upper()
         _bridge_capecs = attack_to_capec.get(_tech_id, [])
+        if debug_info is not None:
+            debug_info["tech_capec_bridge"] = {"tech_id": _tech_id, "capec_ids": _bridge_capecs}
         for _cid in _bridge_capecs:
             if _cid.upper() in id_to_chunk:
                 retrieved_chunks.append(id_to_chunk[_cid.upper()])
@@ -557,6 +601,8 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
     if _capec_m and ROOT_CAUSE_RE.search(question):
         _capec_id = _capec_m.group(0).upper()
         _bridge_cwes = capec_to_cwe.get(_capec_id, [])
+        if debug_info is not None:
+            debug_info["capec_cwe_bridge"] = {"capec_id": _capec_id, "cwe_ids": _bridge_cwes}
         if _bridge_cwes:
             # Bridge is ground truth — strip semantically-retrieved CWE chunks so the
             # LLM can't pick a false-positive (e.g. CWE-203 for CAPEC-203 query).
@@ -610,6 +656,12 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
     if _t is not None:
         _t["graph"] = time.time()
         _t["candidate_count"] = len(all_candidate_ids)
+    if debug_info is not None:
+        debug_info["graph_candidates"] = {
+            "is_deep": is_deep,
+            "hop1_count": len(hop1_ids),
+            "candidate_count": len(all_candidate_ids),
+        }
 
     # Re-rank all candidate neighbors by similarity to the query.
     # Use pre-computed chunk_embs instead of re-encoding — identical vectors, zero GPU cost.
@@ -644,6 +696,17 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
             # Take top N
             top_n_idx = np.argsort(scores)[-max_neighbors:][::-1]
             neighbor_chunks = [n_chunks[i] for i in top_n_idx]
+            if debug_info is not None:
+                debug_info["graph_neighbors"] = [
+                    {
+                        "identifier": n_chunks[i].get("identifier"),
+                        "name": n_chunks[i].get("name"),
+                        "source": n_chunks[i].get("source"),
+                        "type": n_chunks[i].get("type"),
+                        "score": float(scores[i]),
+                    }
+                    for i in top_n_idx
+                ]
             
             for nc in neighbor_chunks:
                 if nc.get("identifier", "").upper() not in added_ids:
@@ -673,33 +736,58 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
                 if cwe_id not in existing_ids and cwe_id in id_to_chunk:
                     retrieved_chunks.append(id_to_chunk[cwe_id])
             bridge_fired = True
+            if debug_info is not None:
+                debug_info["cve_description_bridge"] = {
+                    "cve_id": cve_with_cwes.get("identifier"),
+                    "cwe_ids": sorted(nvd_cwes),
+                }
             if not eval_mode:
                 print(f"[CVE description bridge: {cve_with_cwes['identifier']} → {sorted(nvd_cwes)}]\n")
 
     # k-NN CWE fallback: for unmapped CVE descriptions (direct bridge didn't fire),
     # find the N most similar mapped CVEs and vote on their CWEs, weighted by similarity.
-    # High-confidence votes (top CWE wins ≥60% of weighted signal) are treated as
+    # High-confidence votes (top CWE wins enough weighted signal) are treated as
     # authoritative — strip competing CWE chunks like the direct bridge does. Lower
     # confidence stays as a soft hint (inject without stripping).
     if not _cve_id_m and not bridge_fired and _mapped_cve_indices.size:
         q_emb_knn = _get_embedder().encode([question], normalize_embeddings=True, convert_to_numpy=True)[0]
         mapped_sims = chunk_embs[_mapped_cve_indices] @ q_emb_knn
-        top_n = 5
-        top_local = np.argpartition(-mapped_sims, top_n)[:top_n]
+        top_n = max(1, min(KNN_CWE_NEIGHBORS, _mapped_cve_indices.size))
+        top_local = np.argpartition(-mapped_sims, top_n - 1)[:top_n]
+        top_local = top_local[np.argsort(-mapped_sims[top_local])]
         cwe_weights: dict[str, float] = defaultdict(float)
         total_weight = 0.0
+        knn_neighbors = []
         for local_i in top_local:
             sim = float(mapped_sims[local_i])
             global_i = int(_mapped_cve_indices[local_i])
+            neighbor_cwes = chunks[global_i].get("cwe_ids", [])
+            knn_neighbors.append({
+                "identifier": chunks[global_i].get("identifier"),
+                "name": chunks[global_i].get("name"),
+                "similarity": sim,
+                "cwe_ids": neighbor_cwes,
+            })
             for cwe_id in chunks[global_i].get("cwe_ids", []):
                 cwe_weights[cwe_id.upper()] += sim
             total_weight += sim
         if cwe_weights:
             sorted_cwes = sorted(cwe_weights.items(), key=lambda kv: -kv[1])
+            knn_weights = {cid: weight for cid, weight in sorted_cwes}
             top_cwe, top_weight = sorted_cwes[0]
             top_share = top_weight / total_weight if total_weight else 0.0
+            if debug_info is not None:
+                debug_info["knn_cwe"] = {
+                    "neighbors": knn_neighbors,
+                    "weights": knn_weights,
+                    "top_cwe": top_cwe,
+                    "top_share": top_share,
+                    "threshold": KNN_CONFIDENCE_THRESHOLD,
+                    "neighbor_count": top_n,
+                    "mode": "high_confidence" if top_share >= KNN_CONFIDENCE_THRESHOLD else "soft_hint",
+                }
 
-            if top_share >= 0.6:
+            if top_share >= KNN_CONFIDENCE_THRESHOLD:
                 # High confidence: strip non-voted CWE chunks (authoritative signal)
                 retrieved_chunks = [c for c in retrieved_chunks
                                     if not (c.get("source") == "CWE"
@@ -719,6 +807,20 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
                 if not eval_mode:
                     print(f"[k-NN CWE soft hint: {top_voted} top share={top_share:.0%}]\n")
 
+    if CWE_KEYWORD_ANCHORS_ENABLED and not _cve_id_m and not bridge_fired:
+        anchored_cwes = []
+        existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+        for pattern, cwe_id in CWE_KEYWORD_ANCHORS:
+            cwe_upper = cwe_id.upper()
+            if pattern.search(question) and cwe_upper in id_to_chunk and cwe_upper not in existing_ids:
+                retrieved_chunks.append(id_to_chunk[cwe_upper])
+                anchored_cwes.append(cwe_upper)
+                existing_ids.add(cwe_upper)
+        if anchored_cwes and not eval_mode:
+            print(f"[CWE keyword anchors: {anchored_cwes}]\n")
+        if debug_info is not None:
+            debug_info["keyword_anchors"] = anchored_cwes
+
     hist = _history_str(history)
     
     context_parts = []
@@ -729,6 +831,22 @@ def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, lis
         else:
             context_parts.append(f"[{ctype} {c['identifier']} — {c['name']}]\n{c['text']}")
     context = "\n\n---\n\n".join(context_parts)
+    if debug_info is not None:
+        debug_info["final_context"] = [
+            {
+                "identifier": c.get("identifier"),
+                "name": c.get("name"),
+                "source": c.get("source"),
+                "type": c.get("type"),
+                "cwe_ids": c.get("cwe_ids", []),
+            }
+            for c in retrieved_chunks
+        ]
+        debug_info["final_context_cwes"] = [
+            c.get("identifier", "").upper()
+            for c in retrieved_chunks
+            if c.get("identifier", "").upper().startswith("CWE-")
+        ]
     
     eval_rule = (
         "10. Be concise: one justification sentence then the CWE ID on the last line. No more."
@@ -787,7 +905,7 @@ ANSWER:"""
     answer = _llm(prompt)
     if _t is not None:
         _t["llm"] = time.time()
-        print(
+        _profile_print(
             f"[T] retrieve={_t['retrieve']-_t['start']:.2f}s "
             f"filters={_t['filters']-_t['retrieve']:.2f}s "
             f"graph={_t['graph']-_t['filters']:.2f}s ({_t['candidate_count']} cands) "

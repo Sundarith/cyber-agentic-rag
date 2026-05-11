@@ -1,80 +1,141 @@
-# CTI-RAG (cyber-ft)
+# CTI-RAG
 
-Multi-source Cyber Threat Intelligence RAG system for traversing MITRE and NVD knowledge across:
+Local retrieval-augmented generation for cyber threat intelligence.
 
-**Group -> Malware/Tool -> Technique -> CAPEC -> CWE -> Mitigation**
+CTI-RAG answers questions across MITRE ATT&CK, CAPEC, CWE, and NVD CVE data, including multi-hop paths such as:
 
-The system combines hybrid retrieval over ATT&CK, CAPEC, CWE, and CVE corpora with a local 7B model.
+```text
+Group -> Malware/Tool -> Technique -> CAPEC -> CWE -> Mitigation
+```
 
-## Benchmark Result
+The system uses hybrid retrieval, explicit MITRE/NVD relationship bridges, graph expansion, and a local 7B instruct model served by vLLM.
 
-**84.3% (843/1000)** on CTI-Bench CTI-RCM (exact-match CVE -> CWE classification).
+## Result
 
-- NVD-mapped CVEs: **86.6% (782/903)**
-- NVD-unmapped CVEs: **62.9% (61/97)**
+CTI-RAG scores **84.3% (843/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping.
 
-| System | Score | Setup |
-|---|---|---|
-| **CTI-RAG (this repo)** | **84.3%** | Qwen2.5-7B-Instruct (local, FP16) + RAG over public NVD/MITRE data |
-| GPT-4 (CTI-Bench paper) | 72.0% | Frontier model, no retrieval, memory-only |
+| System | CTI-RCM score | Setup |
+| --- | ---: | --- |
+| CTI-RAG | **84.3%** | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data |
+| GPT-4 in CTI-Bench | 72.0% | Frontier model, no retrieval, memory-only answering |
 
-### Fair framing
+Breakdown:
 
-This result does not mean a 7B model is inherently smarter than GPT-4.
+| Subset | Score |
+| --- | ---: |
+| All 1000 queries | **84.3%** (843/1000) |
+| NVD-mapped CVEs | **86.6%** (782/903) |
+| NVD-unmapped CVEs | **62.9%** (61/97) |
 
-It means a local 7B model with strong retrieval over authoritative public data can beat memory-only answering on this benchmark format.
+This is not an apples-to-apples model comparison. CTI-RAG uses retrieval over public security data, while the GPT-4 number from CTI-Bench is a no-retrieval baseline. The result is still operationally meaningful: security teams usually have NVD and MITRE data available, and the benchmark tests whether a system can use that evidence reliably.
 
-The comparison is not apples-to-apples, but it is operationally meaningful for security teams that already use NVD and MITRE data.
+## Why This Exists
+
+Threat intelligence questions often require crossing dataset boundaries. A question about a threat group can require finding malware, then ATT&CK techniques, then CAPEC attack patterns, then CWE weaknesses, then mitigations.
+
+Plain top-k semantic retrieval is brittle on this task. It can retrieve the wrong object because IDs share numbers, stop after one hop, or miss structured relationships that are present in the source data. CTI-RAG makes those relationships explicit and gives the model grounded context instead of asking it to reconstruct the chain from memory.
 
 ## Architecture
 
 ```text
-User Query
+Query
   |
   v
-Hybrid Retrieval (BM25 + BGE embeddings, alpha=0.5, top-k=8)
+Hybrid retrieval
+  - BM25 lexical scoring
+  - BGE embedding similarity
+  - alpha = 0.5, top_k = 8
   |
   v
-Knowledge Graph Expansion (1-hop / 2-hop Deep Search)
+Entity bridge
+  - Detect groups, malware, tools, and campaigns
+  - Boost the entity chunk and associated techniques
   |
   v
-Bridge Injection
-  - Technique -> CAPEC (explicit mapping)
-  - CAPEC -> CWE (explicit mapping)
-  - CVE description match -> NVD cwe_ids (authoritative)
-  - Unmapped CVE -> k-NN CWE vote from nearest mapped CVEs
+Knowledge graph expansion
+  - 1-hop by default
+  - 2-hop Deep Search for root-cause, CAPEC, detection, and mitigation questions
   |
   v
-Conflict Stripping
-  - Remove competing CWE chunks when bridge is authoritative
+Explicit bridge injection
+  - ATT&CK Technique -> CAPEC
+  - CAPEC -> CWE
+  - CVE description match -> NVD cwe_ids
+  - Unmapped CVE -> k-NN vote from nearest mapped CVEs
   |
   v
-vLLM (Qwen2.5-7B-Instruct, FP16) -> final answer
+Conflict stripping
+  - Remove competing CWE chunks when an authoritative bridge fires
+  |
+  v
+Qwen2.5-7B-Instruct via vLLM
 ```
 
-## What Works Well
+## What Works
 
-- Reliable multi-hop CTI traversal across ATT&CK, CAPEC, CWE, and CVE.
-- Strong mapped CVE performance via structured NVD CWE bridge.
-- Useful unmapped CVE fallback via similarity-weighted k-NN voting.
-- Local inference (no per-query API cost) with practical throughput.
+- Multi-hop ATT&CK/CAPEC/CWE/Mitigation traversal.
+- Reverse entity lookups such as group-to-malware and malware-to-techniques.
+- Explicit Tech-to-CAPEC and CAPEC-to-CWE mappings from MITRE data.
+- CVE-to-CWE mapping from NVD structured `problemTypes.cweId`, including CNA and ADP/CISA Vulnrichment containers.
+- k-NN CWE voting for CVEs that do not have an NVD CWE assignment.
+- Local FP16 inference with vLLM continuous batching.
 
-## Current Limits
+Validated examples include:
 
-- Not a pure reasoning comparison with frontier models; retrieval does most of the heavy lifting.
-- NVD vs CTI-Bench CWE disagreements are unavoidable scoring penalties.
-- Unmapped CVEs still fail mostly on near-miss CWE taxonomy confusion.
+```text
+Sandworm -> Prestige -> T1112 -> CAPEC-203 -> CWE-15 -> M1024
+Lazarus -> BLINDINGCAN -> T1566 -> CAPEC-98 -> CWE-451 -> M1017/M1031
+```
 
-## Reproducibility
+## Limits
 
-### 1. Environment
+- The mapped-CVE score is mostly retrieval finding the matching NVD record and reading its structured CWE assignment.
+- The unmapped-CVE score is lower because the system must infer a CWE from description similarity and local context.
+- Remaining failures are dominated by CWE taxonomy near-misses and disagreements between NVD assignments and CTI-Bench ground truth.
+- The project is built for local research and reproducibility, not as a hardened production service.
+
+## Data
+
+The system expects public MITRE/NVD data and a local CTI-Bench clone:
+
+```text
+data/raw/enterprise-attack.json              # MITRE ATT&CK STIX bundle
+data/raw/stix-capec.json                     # CAPEC STIX bundle
+data/raw/cwec_latest.xml                     # CWE XML dataset
+data/raw/cves/cves/YYYY/                     # NVD CVE JSON files, gitignored
+data/cti-bench/                              # CTI-Bench clone
+
+data/processed/attack_chunks.jsonl           # built from ATT&CK
+data/processed/capec_chunks.jsonl            # built from CAPEC
+data/processed/cwe_chunks.jsonl              # built from CWE
+data/processed/cve_chunks.jsonl              # built from NVD, gitignored
+data/processed/cve_cwe_index.json            # CVE ID -> NVD CWE IDs
+data/processed/entity_relations.json         # Group/tool/malware relations
+data/processed/capec_attack_relations.json   # wrapper key: tech_to_capec
+data/processed/capec_cwe_relations.json      # wrapper key: capec_to_cwe
+data/processed/chunk_embs.npy                # embedding cache, gitignored
+```
+
+Large generated files are intentionally not committed.
+
+## Requirements
+
+Tested environment:
 
 - Python 3.11
-- conda env: `cyber-ft`
+- conda environment named `cyber-ft`
 - CUDA 12.x
+- PyTorch 2.6.0+cu124
+- sentence-transformers 5.4.1
 - vLLM 0.19.1
+- `Qwen/Qwen2.5-7B-Instruct`
+- `BAAI/bge-small-en-v1.5`
 
-### 2. Start vLLM (first, in a separate terminal)
+The reference machine uses two RTX 4090 GPUs. vLLM runs on `cuda:0`; the second GPU can be used by a second embedder instance during evaluation.
+
+## Quick Start
+
+Start vLLM first in a separate terminal:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 /home/sheng/miniconda3/bin/vllm serve Qwen/Qwen2.5-7B-Instruct \
@@ -82,9 +143,16 @@ CUDA_VISIBLE_DEVICES=0 /home/sheng/miniconda3/bin/vllm serve Qwen/Qwen2.5-7B-Ins
   --enable-prefix-caching --port 8000
 ```
 
-### 3. Build / rebuild chunks
+Run the chatbot:
 
-Run after changing source data or chunk builders:
+```bash
+conda activate cyber-ft
+python3 better_rag.py
+```
+
+## Rebuild Processed Data
+
+Run these after changing raw source data or a chunk builder:
 
 ```bash
 conda run -n cyber-ft python3 build_attack_chunks.py
@@ -93,7 +161,7 @@ conda run -n cyber-ft python3 build_cwe_chunks.py
 conda run -n cyber-ft python3 build_cve_chunks.py
 ```
 
-After rebuilding `cve_chunks.jsonl`, also rebuild `cve_cwe_index.json`:
+After rebuilding CVE chunks, rebuild the lightweight CVE-to-CWE index:
 
 ```bash
 conda run -n cyber-ft python3 -c "
@@ -109,26 +177,21 @@ print(f'Written {len(index):,} entries')
 "
 ```
 
-If any `*_chunks.jsonl` file changed, delete embedding cache before running:
+If a chunk file changes, remove the embedding cache before the next run so it is rebuilt:
 
 ```bash
 rm -f data/processed/chunk_embs.npy
 ```
 
-### 4. Run chatbot
+## Reproduce CTI-RCM
 
-```bash
-conda activate cyber-ft
-python3 better_rag.py
-```
-
-### 5. Run CTI-RCM eval
+Use the same CTI-Bench prompt field used for the published GPT-4 comparison:
 
 ```bash
 conda run -n cyber-ft python3 -u eval_rcm.py 1000
 ```
 
-Useful subsets:
+Useful subset runs:
 
 ```bash
 conda run -n cyber-ft python3 -u eval_rcm.py 100 --nvd-mapped
@@ -136,54 +199,30 @@ conda run -n cyber-ft python3 -u eval_rcm.py 100 --nvd-unmapped
 conda run -n cyber-ft python3 -u eval_rcm.py 100 --matched
 ```
 
-## Final Locked Scores
+Notes:
 
-- **All queries (1000): 84.3% (843/1000)**
-- **NVD-mapped (903): 86.6% (782/903)**
-- **NVD-unmapped (97): 62.9% (61/97)**
+- Start vLLM before running evaluation.
+- The full 1000-query benchmark takes about 25-30 minutes on the reference machine with `WORKERS=16`.
+- vLLM should be started with `--max-model-len 32768`; shorter context windows can fail on large CVE prompts.
+- The eval script intentionally uses `row["Prompt"]`, not a query containing the CVE ID. CVE-ID queries turn the benchmark into a database lookup.
+- Add `--profile` or set `CTI_RAG_PROFILE=1` to print `[R]` retrieval timings and `[T]` end-to-end checkpoints.
 
-## Data Layout
+## Implementation Notes
 
-```text
-data/raw/enterprise-attack.json
-data/raw/stix-capec.json
-data/raw/cwec_latest.xml
-data/raw/cves/cves/YYYY/                # NVD CVE JSON files (gitignored)
-data/cti-bench/                          # third-party benchmark clone
-
-data/processed/attack_chunks.jsonl
-data/processed/capec_chunks.jsonl
-data/processed/cwe_chunks.jsonl
-data/processed/cve_chunks.jsonl          # gitignored
-
-data/processed/cve_cwe_index.json        # CVE ID -> [CWE IDs]
-data/processed/entity_relations.json
-data/processed/capec_attack_relations.json  # wrapper: tech_to_capec
-data/processed/capec_cwe_relations.json     # wrapper: capec_to_cwe
-data/processed/chunk_embs.npy            # gitignored cache
-```
-
-## Hard Rules (for contributors)
-
-- Do not edit `*_chunks.jsonl` directly; regenerate via `build_*.py`.
-- Rebuild `cve_cwe_index.json` after `build_cve_chunks.py`.
-- Keep hybrid retrieval (`HYBRID_ALPHA=0.5`) unless explicitly justified.
-- Prefer explicit bridge mappings over semantic guesses for Tech<->CAPEC and CAPEC<->CWE.
-- CVE->CWE graph edges come only from structured `cwe_ids` (NVD problemTypes), not prose scanning.
-- Keep anti-hallucination prompt constraints in place.
+- Hybrid retrieval uses BM25 plus BGE embeddings with `HYBRID_ALPHA = 0.5`.
+- Retrieval tuning constants are named at the top of `better_rag.py`.
+- Bridge JSON files have wrapper keys; use `tech_to_capec` and `capec_to_cwe`.
+- CVE-to-CWE graph edges come only from structured NVD `cwe_ids`, not from scanning CVE prose.
+- For explicit MITRE mappings, bridge injection is preferred over semantic retrieval.
+- Generated chunk files should be rebuilt with the matching `build_*.py` script, not edited by hand.
 
 ## Sources
 
 - MITRE ATT&CK
 - MITRE CAPEC
 - MITRE CWE
-- NVD CVE feeds (including CNA + ADP/CISA Vulnrichment mappings)
-- CTI-Bench (Alam et al., NeurIPS 2024)
-
-## Models
-
-- Embedder: `BAAI/bge-small-en-v1.5`
-- LLM: `Qwen/Qwen2.5-7B-Instruct` via vLLM (FP16)
+- NVD CVE data, including CNA and ADP/CISA Vulnrichment mappings
+- CTI-Bench / CTI-RCM
 
 ## License
 
