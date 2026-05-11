@@ -94,17 +94,27 @@ def process_cve(file_path: Path):
     if affected_lines:
         parts.append("\n## Affected Products\n" + "\n".join(affected_lines))
         
-    # Problem Types (CWE)
+    # Problem Types (CWE) — CNA container first, then ADP (CISA Vulnrichment)
     cwes = []
+    cwe_ids = []  # structured list for graph edges — only explicit NVD assignments
     for pt in cna.get("problemTypes", []):
         for d in pt.get("descriptions", []):
             cwe_id = d.get("cweId")
             cwe_desc = d.get("description", "")
             if cwe_id:
                 cwes.append(f"{cwe_id}: {cwe_desc}")
+                cwe_ids.append(cwe_id.upper())
             elif cwe_desc:
                 cwes.append(cwe_desc)
-    
+
+    for adp in containers.get("adp", []):
+        for pt in adp.get("problemTypes", []):
+            for d in pt.get("descriptions", []):
+                cwe_id = d.get("cweId")
+                if cwe_id and cwe_id.upper() not in cwe_ids:
+                    cwe_ids.append(cwe_id.upper())
+                    cwes.append(f"{cwe_id}: {d.get('description', '')}")
+
     if cwes:
         parts.append("\n## Weaknesses (CWE)\n" + "\n".join(f"- {c}" for c in cwes))
         
@@ -142,6 +152,7 @@ def process_cve(file_path: Path):
         "identifier": cve_id,
         "name": cve_id,
         "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+        "cwe_ids": cwe_ids,  # explicit NVD CWE assignments — used for graph edges in better_rag.py
     }
 
 def main():

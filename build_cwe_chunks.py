@@ -63,19 +63,55 @@ def main():
             weaknesses.append(elem)
 
     print(f"Found {len(weaknesses)} CWE elements.")
+
+    # First pass: collect id → {name, abstraction} and id → parent_ids (ChildOf)
+    id_to_meta = {}
+    id_to_parents = {}
+    for w in weaknesses:
+        w_id = w.attrib.get("ID")
+        if not w_id:
+            continue
+        id_to_meta[w_id] = {
+            "name": w.attrib.get("Name", ""),
+            "abstraction": w.attrib.get("Abstraction", ""),
+        }
+        parents = []
+        for child in w:
+            if child.tag.endswith("Related_Weaknesses"):
+                for rw in child:
+                    if rw.attrib.get("Nature") == "ChildOf":
+                        p_id = rw.attrib.get("CWE_ID")
+                        if p_id:
+                            parents.append(p_id)
+        if parents:
+            id_to_parents[w_id] = parents
+
     chunks = []
-    
+
     for w in weaknesses:
         w_id = w.attrib.get("ID")
         w_name = w.attrib.get("Name")
         if not w_id or not w_name:
             continue
-            
+
         cwe_id = f"CWE-{w_id}"
         tag_type = w.tag.split('}')[-1] # Weakness, Category, View
-        
+        abstraction = w.attrib.get("Abstraction", "")
+
         parts = [f"# {cwe_id} — {w_name}"]
-        parts.append(f"*(CWE {tag_type})*")
+        abstraction_str = f" — {abstraction}" if abstraction else ""
+        parts.append(f"*(CWE {tag_type}{abstraction_str})*")
+
+        # Parent CWE relationships — injected into text so the graph builder
+        # in better_rag.py auto-wires CWE hierarchy edges via _id_re matching.
+        parents = id_to_parents.get(w_id, [])
+        if parents:
+            parent_strs = []
+            for pid in parents:
+                meta = id_to_meta.get(pid, {})
+                pname = meta.get("name", "")
+                parent_strs.append(f"CWE-{pid}" + (f" ({pname})" if pname else ""))
+            parts.append(f"*Parent CWE: {', '.join(parent_strs)}*")
         
         # Description
         desc_node = None
@@ -160,6 +196,8 @@ def main():
             "type": tag_type.lower(),
             "identifier": cwe_id,
             "name": w_name,
+            "abstraction": abstraction,
+            "parent_cwe_ids": [f"CWE-{pid}" for pid in id_to_parents.get(w_id, [])],
             "url": f"https://cwe.mitre.org/data/definitions/{w_id}.html"
         })
         

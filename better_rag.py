@@ -4,7 +4,9 @@ Hybrid RAG (BM25 + embeddings) over ATT&CK chunks + local LLM via Ollama.
 import json
 import math
 import re
+import time
 import difflib
+import threading
 import numpy as np
 import requests
 from collections import Counter, defaultdict
@@ -18,8 +20,8 @@ CVE_CHUNKS    = Path("data/processed/cve_chunks.jsonl")
 RELATIONS     = Path("data/processed/entity_relations.json")
 CAPEC_RELS    = Path("data/processed/capec_attack_relations.json")
 CAPEC_CWE_RELS = Path("data/processed/capec_cwe_relations.json")
-OLLAMA        = "http://localhost:11434/api/generate"
-MODEL        = "qwen2.5:7b"
+LLM_ENDPOINT = "http://localhost:8000/v1/chat/completions"   # vLLM OpenAI-compatible API
+MODEL        = "Qwen/Qwen2.5-7B-Instruct"
 EMBEDDER     = "BAAI/bge-small-en-v1.5"
 BM25_K1      = 1.5
 BM25_B       = 0.75
@@ -126,10 +128,16 @@ chunk_graph = defaultdict(set)
 _id_re = re.compile(r'\b(T\d{4}(?:\.\d{3})?|M\d{4}|G\d{4}|S\d{4}|C\d{4}|DS\d{4}|CAPEC-\d+|CWE-\d+|CVE-\d{4}-\d+)\b', re.IGNORECASE)
 
 for c in chunks:
-    if c.get("source") == "CVE":
-        continue  # CVE text references many CAPEC/CWE IDs that aren't meaningful graph edges
     cid = c.get("identifier", "").upper()
     if not cid: continue
+    if c.get("source") == "CVE":
+        # Only wire explicit NVD CWE assignments — not prose text (too many false edges)
+        for cwe_id in c.get("cwe_ids", []):
+            cwe_upper = cwe_id.upper()
+            if cwe_upper in id_to_chunk:
+                chunk_graph[cid].add(cwe_upper)
+                chunk_graph[cwe_upper].add(cid)
+        continue
     # Extract explicit edges from chunk text
     for m in _id_re.finditer(c["text"]):
         m_upper = m.group(1).upper()
@@ -177,8 +185,27 @@ for i, c in enumerate(chunks):
 _avgdl = float(_doc_len.mean())
 print(f"  {len(_doc_freq)} unique terms, avgdl={_avgdl:.0f}")
 
+# Pre-convert postings to numpy arrays so BM25 becomes vectorized.
+# Avoids per-term Python loops that hold the GIL and serialize between eval threads.
+_inv_idx_np: dict[str, tuple[np.ndarray, np.ndarray]] = {
+    t: (np.fromiter(p.keys(), dtype=np.int32, count=len(p)),
+        np.fromiter(p.values(), dtype=np.float32, count=len(p)))
+    for t, p in _inv_idx.items()
+}
+
+_thread_local = threading.local()
+
 print("Loading embedder...")
-embedder = SentenceTransformer(EMBEDDER, device="cuda")
+embedder = SentenceTransformer(EMBEDDER, device="cuda:0")
+try:
+    _embedder_1 = SentenceTransformer(EMBEDDER, device="cuda:1")
+    print("  Second embedder on cuda:1 ready for parallel eval")
+except Exception as _e:
+    _embedder_1 = None
+    print(f"  cuda:1 not available ({_e}), parallel eval will share cuda:0")
+
+def _get_embedder() -> SentenceTransformer:
+    return getattr(_thread_local, 'embedder', embedder)
 
 print("Embedding all chunks (checking cache)...")
 if EMB_CACHE.exists():
@@ -200,38 +227,65 @@ else:
     np.save(EMB_CACHE, chunk_embs)
 print(f"  Shape: {chunk_embs.shape}\n")
 
+# Pre-compute boolean masks for scoring — used in retrieve() as numpy array ops
+# to avoid O(N) Python loops that hold the GIL and block parallel eval threads.
+_detection_mask   = np.array([c.get("type") == "detection" for c in chunks], dtype=bool)
+_nameless_mask    = np.array([not c.get("identifier") for c in chunks], dtype=bool)
+_cve_source_mask  = np.array([c.get("source") == "CVE" for c in chunks], dtype=bool)
+_cwe_source_mask  = np.array([c.get("source") == "CWE" for c in chunks], dtype=bool)
+_root_cause_mask  = np.array([
+    c.get("source") == "CWE" or c.get("type") in ("weakness", "category", "view")
+    for c in chunks
+], dtype=bool)
+
+# Name → chunk index for O(1) entity lookups (replaces inner loops over all chunks)
+_name_to_idx: dict[str, int] = {
+    c["name"].lower(): i for i, c in enumerate(chunks) if c.get("name")
+}
+
+# k-NN CWE bridge: indices of CVE chunks with NVD-assigned cwe_ids. Used as a fallback
+# when the direct CVE→NVD bridge doesn't fire (unmapped CVE descriptions). The N most
+# similar mapped CVEs vote on the CWE, and the winner is injected as a soft hint.
+_mapped_cve_indices = np.array(
+    [i for i, c in enumerate(chunks) if c.get("source") == "CVE" and c.get("cwe_ids")],
+    dtype=np.int32,
+)
+print(f"  {_mapped_cve_indices.size:,} mapped CVE chunks indexed for k-NN CWE voting")
+
 
 # ── retrieval ─────────────────────────────────────────────────────────────────
 
 def _bm25_scores(query_tokens: list[str]) -> np.ndarray:
     scores = np.zeros(_N)
     for t in set(query_tokens):
-        postings = _inv_idx.get(t)
-        if not postings:
+        entry = _inv_idx_np.get(t)
+        if entry is None:
             continue
-        df = len(postings)
+        idx_arr, tf_arr = entry
+        df = idx_arr.size
         idf = math.log((_N - df + 0.5) / (df + 0.5) + 1)
-        for i, tf in postings.items():
-            dl = _doc_len[i]
-            scores[i] += idf * (tf * (BM25_K1 + 1)) / (tf + BM25_K1 * (1 - BM25_B + BM25_B * dl / _avgdl))
+        dl_arr = _doc_len[idx_arr]
+        scores[idx_arr] += idf * (tf_arr * (BM25_K1 + 1)) / (tf_arr + BM25_K1 * (1 - BM25_B + BM25_B * dl_arr / _avgdl))
     return scores
 
 
 def retrieve(query: str, k: int = TOP_K) -> list:
-    q_emb   = embedder.encode([query], normalize_embeddings=True)[0]
-    emb_sc  = chunk_embs @ q_emb
+    _r0 = time.time()
+    q_emb  = _get_embedder().encode([query], normalize_embeddings=True)[0]
+    _r1 = time.time()
+    emb_sc = chunk_embs @ q_emb
+    _r2 = time.time()
 
     bm25_sc = _bm25_scores(_tokenize(query))
     if bm25_sc.max() > 0:
         bm25_sc = bm25_sc / bm25_sc.max()
+    _r3 = time.time()
 
     combined = HYBRID_ALPHA * emb_sc + (1 - HYBRID_ALPHA) * bm25_sc
 
     # 4. Intent-based boosting (e.g., if query asks for detection, boost detection chunks)
     if DETECTION_RE.search(query):
-        for i, c in enumerate(chunks):
-            if c.get("type") == "detection":
-                combined[i] += 2.0
+        combined[_detection_mask] += 2.0
 
     # 5. Fuzzy name boost (handle typos like 'blusmacking')
     # Skip for long queries (CVE descriptions, prompts) — common English words like
@@ -253,17 +307,19 @@ def retrieve(query: str, k: int = TOP_K) -> list:
     # unique IDs well. A massive boost monopolizes all slots with noise.
     id_matches = re.findall(r'\b(?:[TM]\d{4}(?:\.\d{3})?|CAPEC-\d+|CWE-\d+|CVE-\d{4}-\d+)\b', query, re.IGNORECASE)
     for match in id_matches:
-        for i, c in enumerate(chunks):
-            if c.get("identifier", "").upper() == match.upper():
-                combined[i] += 2.0
-                break
+        idx = id_to_idx.get(match.upper())
+        if idx is not None:
+            combined[idx] += 2.0
 
     # if no ID, boost the chunk whose technique name appears verbatim in the query
     # longest name wins so "Scanning IP Blocks" beats "Active Scanning" when both fit
     if not id_matches:
         q_lower = query.lower()
         for name, idx in _tech_name_index:
-            if re.search(rf'\b{re.escape(name)}\b', q_lower):
+            # fast substring pre-check — substring is a necessary condition for
+            # the word-boundary regex match, so this skips ~all 30k iterations
+            # for queries (e.g. CVE descriptions) that contain no chunk names.
+            if name in q_lower and re.search(rf'\b{re.escape(name)}\b', q_lower):
                 combined[idx] = combined.max() + 0.1
                 break
 
@@ -276,59 +332,54 @@ def retrieve(query: str, k: int = TOP_K) -> list:
 
         # Boost the entity chunk itself so "What is Sandworm Team?" returns G0034 directly.
         # Score-based (not keyword routing) so multi-hop queries still work correctly.
-        for i, c in enumerate(chunks):
-            if c.get("name", "").lower() == ent_name and c.get("type") in ("group", "malware", "tool", "campaign"):
-                combined[i] += 2.0
-                break
+        ent_idx = _name_to_idx.get(ent_name)
+        if ent_idx is not None and chunks[ent_idx].get("type") in ("group", "malware", "tool", "campaign"):
+            combined[ent_idx] += 2.0
 
         for rc in related_chunks:
-            # find index of this chunk
-            for i, c in enumerate(chunks):
-                if c["identifier"] == rc["identifier"]:
-                    boost = 1.5
-                    # Connectivity Boost: if this technique has a CAPEC mapping, boost it more
-                    if c["identifier"] in attack_to_capec:
-                        boost += 1.0
-                    combined[i] += boost
-                    break
+            rc_idx = id_to_idx.get(rc["identifier"].upper())
+            if rc_idx is not None:
+                boost = 1.5
+                if chunks[rc_idx]["identifier"] in attack_to_capec:
+                    boost += 1.0
+                combined[rc_idx] += boost
+
         # Also boost relations (group -> malware etc)
         if ent_type == "group":
             for m_name in group_to_malware.get(ent_name, []):
-                for i, c in enumerate(chunks):
-                    if c["name"].lower() == m_name.lower():
-                        combined[i] += 1.0
-                        break
+                m_idx = _name_to_idx.get(m_name.lower())
+                if m_idx is not None:
+                    combined[m_idx] += 1.0
 
     # Intent Routing: Boost CWE chunks if query focuses on root causes.
     # Keep this small — technique chunks must stay in top-K so the graph can reach the
     # correct CWEs via traversal. The +2.0 graph-neighbor CWE boost (in ask()) does the
     # heavy lifting for root-cause queries.
     if ROOT_CAUSE_RE.search(query):
-        for i, c in enumerate(chunks):
-            if c.get("source") == "CWE" or c.get("type") in ("weakness", "category", "view"):
-                combined[i] += 0.3
+        combined[_root_cause_mask] += 0.3
 
     # Penalize nameless chunks — they have no identifier so they can't participate
     # in graph traversal and only add noise to the context.
-    for i, c in enumerate(chunks):
-        if not c.get("identifier"):
-            combined[i] -= 1.0
+    combined[_nameless_mask] -= 1.0
 
     # Penalize CVE chunks for non-CVE queries — they're semantically similar to
     # ATT&CK/CAPEC content and flood the top-K when no CVE ID is in the query.
+    # Exception: for long description-style queries (CVE description prompts),
+    # let CVE chunks compete naturally — the matching CVE wins via verbatim text
+    # similarity, and the NVD bridge in ask() then uses its cwe_ids as authoritative.
     if not re.search(r'\bCVE-\d{4}-\d+\b', query, re.IGNORECASE):
-        for i, c in enumerate(chunks):
-            if c.get("source") == "CVE":
-                combined[i] -= 0.5
+        if len(_tokenize(query)) <= 15:
+            combined[_cve_source_mask] -= 0.5
     else:
         # For CVE queries: suppress all CWE chunks — they're generic noise when the CVE
         # chunk already contains the CWE info (or "n/a"). The LLM should reason from the
         # CVE description, not pick a random quality CWE like CWE-1116.
-        for i, c in enumerate(chunks):
-            if c.get("source") == "CWE":
-                combined[i] -= 1.5
+        combined[_cwe_source_mask] -= 1.5
 
+    _r4 = time.time()
     top_idx  = np.argsort(-combined)[:k]
+    _r5 = time.time()
+    print(f"  [R] enc={_r1-_r0:.2f} matmul={_r2-_r1:.2f} bm25={_r3-_r2:.2f} boosts={_r4-_r3:.2f} sort={_r5-_r4:.2f}", flush=True)
     return [(chunks[i], float(combined[i])) for i in top_idx]
 
 
@@ -344,21 +395,24 @@ def _history_str(history: list) -> str:
 
 def _llm(prompt: str) -> str:
     try:
-        r = requests.post(OLLAMA, json={
-            "model": MODEL, "prompt": prompt, "stream": False,
-            "options": {"temperature": 0.1, "num_ctx": 16384},
+        r = requests.post(LLM_ENDPOINT, json={
+            "model": MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 256,
+            "stream": False,
         })
         r.raise_for_status()
         data = r.json()
-        if "response" not in data:
-            print(f"Ollama Error (Missing 'response'): {data}")
-            return "Error: Ollama returned an unexpected response."
-        return data["response"]
+        if "choices" not in data or not data["choices"]:
+            print(f"vLLM Error (no choices): {data}")
+            return "Error: vLLM returned an unexpected response."
+        return data["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"Ollama Connection Error: {e}")
+        print(f"vLLM Connection Error: {e}")
         if 'r' in locals():
             print(f"Status Code: {r.status_code}, Body: {r.text}")
-        return "Error: Could not connect to Ollama."
+        return "Error: Could not connect to vLLM."
 
 
 ENTITY_REVERSE_RE = re.compile(r'\b(what|which|list|show).{0,50}\b(techniques?|attacks?|tactics?|malwares?|software|tools?|groups?|actors?|do|does|use[sd]?|cause[sd]?)\b', re.IGNORECASE)
@@ -418,7 +472,7 @@ def _find_all_entities_in_query(question: str) -> list:
 
 
 
-def ask(question: str, history: list) -> tuple[str, list, str]:
+def ask(question: str, history: list, eval_mode: bool = False) -> tuple[str, list, str]:
     # Reverse entity lookup — fires when both a reverse-question pattern AND a known entity name appear.
     # Skip when 2+ entities detected — let retrieval + LLM handle comparison/relationship queries.
     # SKIP/BYPASS if query also asks for CWEs, detection, or mitigations (complex synthesis needed).
@@ -464,11 +518,16 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
             print(f"[Reverse entity lookup: {display} ({entity_type}) → {len(idx[name])} techniques]\n")
             return text, [], text
 
+    _t = {} if eval_mode else None
+    if _t is not None: _t["start"] = time.time()
+
     retrieved = retrieve(question)
     retrieved_chunks = [c for c, _ in retrieved]
+    if _t is not None: _t["retrieve"] = time.time()
 
     score_info = ", ".join(f"{c['identifier'] or c.get('name', '?')} ({s:.2f})" for c, s in retrieved)
-    print(f"[Hybrid search: {score_info}]\n")
+    if not eval_mode:
+        print(f"[Hybrid search: {score_info}]\n")
 
     # For CVE-specific queries: keep only the matched CVE chunk as context.
     # Other chunks (random CVEs, generic CWEs) add noise — the CVE chunk already
@@ -520,6 +579,8 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
                             if not (c.get("type") == "mitigation"
                                     and c.get("identifier", "").upper() not in _tech_neighbors)]
 
+    if _t is not None: _t["filters"] = time.time()
+
     # Universal Knowledge Graph Traversal
     # Determine depth: 2-hop for complex queries (Deep Search), 1-hop otherwise.
     is_deep = bool(ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question) or CAPEC_RE.search(question))
@@ -546,14 +607,20 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
                     if n2 not in added_ids:
                         all_candidate_ids.add(n2)
     
-    # Re-rank all candidate neighbors by similarity to the query
+    if _t is not None:
+        _t["graph"] = time.time()
+        _t["candidate_count"] = len(all_candidate_ids)
+
+    # Re-rank all candidate neighbors by similarity to the query.
+    # Use pre-computed chunk_embs instead of re-encoding — identical vectors, zero GPU cost.
     neighbor_chunks = []
     if all_candidate_ids:
-        n_list = list(all_candidate_ids)
+        n_list   = [nid for nid in all_candidate_ids if nid in id_to_idx]
         n_chunks = [id_to_chunk[nid] for nid in n_list if nid in id_to_chunk]
+        n_list   = [nid for nid in n_list if nid in id_to_chunk]
         if n_chunks:
-            n_embs = embedder.encode([nc["text"] for nc in n_chunks], convert_to_numpy=True, normalize_embeddings=True)
-            q_emb = embedder.encode([question], convert_to_numpy=True, normalize_embeddings=True)[0]
+            n_embs = chunk_embs[[id_to_idx[nid] for nid in n_list]]
+            q_emb  = _get_embedder().encode([question], convert_to_numpy=True, normalize_embeddings=True)[0]
             scores = np.dot(n_embs, q_emb)
 
             # For root-cause queries, prefer CWE chunks over technique/CAPEC chunks
@@ -584,7 +651,73 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
                     added_ids.add(nc.get("identifier", "").upper())
             
             mode_str = "Deep Search (2-hop)" if is_deep else "1-hop"
-            print(f"[{mode_str}: added top {len(neighbor_chunks)} graph neighbors to context]\n")
+            if not eval_mode:
+                print(f"[{mode_str}: added top {len(neighbor_chunks)} graph neighbors to context]\n")
+
+    if _t is not None: _t["neighbors"] = time.time()
+
+    # CVE description bridge: if a CVE chunk made it into context (likely the matching
+    # CVE for a description-style query), its NVD CWE assignments are authoritative.
+    # Strip all other CWE chunks and inject the NVD CWEs. Same pattern as CAPEC→CWE bridge.
+    bridge_fired = False
+    if not _cve_id_m:
+        cve_with_cwes = next((c for c in retrieved_chunks
+                              if c.get("source") == "CVE" and c.get("cwe_ids")), None)
+        if cve_with_cwes:
+            nvd_cwes = {cid.upper() for cid in cve_with_cwes["cwe_ids"]}
+            retrieved_chunks = [c for c in retrieved_chunks
+                                if not (c.get("source") == "CWE"
+                                        and c.get("identifier", "").upper() not in nvd_cwes)]
+            existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+            for cwe_id in nvd_cwes:
+                if cwe_id not in existing_ids and cwe_id in id_to_chunk:
+                    retrieved_chunks.append(id_to_chunk[cwe_id])
+            bridge_fired = True
+            if not eval_mode:
+                print(f"[CVE description bridge: {cve_with_cwes['identifier']} → {sorted(nvd_cwes)}]\n")
+
+    # k-NN CWE fallback: for unmapped CVE descriptions (direct bridge didn't fire),
+    # find the N most similar mapped CVEs and vote on their CWEs, weighted by similarity.
+    # High-confidence votes (top CWE wins ≥60% of weighted signal) are treated as
+    # authoritative — strip competing CWE chunks like the direct bridge does. Lower
+    # confidence stays as a soft hint (inject without stripping).
+    if not _cve_id_m and not bridge_fired and _mapped_cve_indices.size:
+        q_emb_knn = _get_embedder().encode([question], normalize_embeddings=True, convert_to_numpy=True)[0]
+        mapped_sims = chunk_embs[_mapped_cve_indices] @ q_emb_knn
+        top_n = 5
+        top_local = np.argpartition(-mapped_sims, top_n)[:top_n]
+        cwe_weights: dict[str, float] = defaultdict(float)
+        total_weight = 0.0
+        for local_i in top_local:
+            sim = float(mapped_sims[local_i])
+            global_i = int(_mapped_cve_indices[local_i])
+            for cwe_id in chunks[global_i].get("cwe_ids", []):
+                cwe_weights[cwe_id.upper()] += sim
+            total_weight += sim
+        if cwe_weights:
+            sorted_cwes = sorted(cwe_weights.items(), key=lambda kv: -kv[1])
+            top_cwe, top_weight = sorted_cwes[0]
+            top_share = top_weight / total_weight if total_weight else 0.0
+
+            if top_share >= 0.6:
+                # High confidence: strip non-voted CWE chunks (authoritative signal)
+                retrieved_chunks = [c for c in retrieved_chunks
+                                    if not (c.get("source") == "CWE"
+                                            and c.get("identifier", "").upper() != top_cwe)]
+                existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+                if top_cwe not in existing_ids and top_cwe in id_to_chunk:
+                    retrieved_chunks.append(id_to_chunk[top_cwe])
+                if not eval_mode:
+                    print(f"[k-NN CWE high-confidence: {top_cwe} share={top_share:.0%}]\n")
+            else:
+                # Lower confidence: soft hint, inject top 3 without stripping
+                top_voted = [cid for cid, _ in sorted_cwes[:3]]
+                existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+                for cwe_id in top_voted:
+                    if cwe_id in id_to_chunk and cwe_id not in existing_ids:
+                        retrieved_chunks.append(id_to_chunk[cwe_id])
+                if not eval_mode:
+                    print(f"[k-NN CWE soft hint: {top_voted} top share={top_share:.0%}]\n")
 
     hist = _history_str(history)
     
@@ -597,7 +730,15 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
             context_parts.append(f"[{ctype} {c['identifier']} — {c['name']}]\n{c['text']}")
     context = "\n\n---\n\n".join(context_parts)
     
-    is_cve_query = bool(re.search(r'\bCVE-\d{4}-\d+\b', question, re.IGNORECASE))
+    eval_rule = (
+        "10. Be concise: one justification sentence then the CWE ID on the last line. No more."
+        if eval_mode else ""
+    )
+
+    # is_cve_query fires when CVE ID is in query OR a CVE chunk is in context (description match).
+    # The cve_rule then tells the LLM to trust the explicit CWE listed in the CVE chunk.
+    is_cve_query = (bool(re.search(r'\bCVE-\d{4}-\d+\b', question, re.IGNORECASE))
+                    or any(c.get("source") == "CVE" for c in retrieved_chunks))
     cve_rule = (
         "9. For CVE root-cause (CWE) questions: if the context lists an explicit CWE ID, state it. "
         "If the weakness shows 'n/a' or no CWE ID, you MUST analyze the vulnerability description "
@@ -605,6 +746,16 @@ def ask(question: str, history: list) -> tuple[str, list, str]:
         "CWE-416 for use-after-free, CWE-787 for out-of-bounds write, CWE-77/78 for command injection). "
         "Always end your answer with the CWE ID on its own line. Never say 'I don't have enough information' "
         "for CVE weakness questions."
+        if is_cve_query else ""
+    )
+
+    hierarchy_rule = (
+        "9b. CWE abstraction level: Prefer Base-level CWEs over Variant-level (too specific) "
+        "or Class/Pillar-level (too abstract). If context shows a Variant such as CWE-121 "
+        "(Stack-based Buffer Overflow) alongside its Base parent CWE-787 (Out-of-bounds Write), "
+        "report the Base-level CWE. If context shows a Class such as CWE-77 (Command Injection) "
+        "alongside its Base child CWE-78 (OS Command Injection), report the Base-level CWE. "
+        "The abstraction level is shown in parentheses in each CWE block header."
         if is_cve_query else ""
     )
 
@@ -620,6 +771,8 @@ CRITICAL RULES:
 7. The [TYPE IDENTIFIER — NAME] header in each context block is the authoritative name and ID for that entry. Use those exact values. Never rename or re-identify based on training knowledge.
 8. Do not add shell commands, scripts, vendor product names, or tool recommendations that are not verbatim in the context blocks above.
 {cve_rule}
+{hierarchy_rule}
+{eval_rule}
 
 Conversation history (for context only):
 {hist}
@@ -630,7 +783,20 @@ Context:
 QUESTION: {question}
 
 ANSWER:"""
+    if _t is not None: _t["prompt_built"] = time.time()
     answer = _llm(prompt)
+    if _t is not None:
+        _t["llm"] = time.time()
+        print(
+            f"[T] retrieve={_t['retrieve']-_t['start']:.2f}s "
+            f"filters={_t['filters']-_t['retrieve']:.2f}s "
+            f"graph={_t['graph']-_t['filters']:.2f}s ({_t['candidate_count']} cands) "
+            f"neighbors={_t['neighbors']-_t['graph']:.2f}s "
+            f"prompt={_t['prompt_built']-_t['neighbors']:.2f}s "
+            f"llm={_t['llm']-_t['prompt_built']:.2f}s "
+            f"total={_t['llm']-_t['start']:.2f}s",
+            flush=True
+        )
     return answer, retrieved_chunks, answer
 
 
