@@ -39,6 +39,7 @@ CWE_KEYWORD_ANCHORS_ENABLED = os.environ.get("CTI_RAG_CWE_KEYWORD_ANCHORS", "0")
 CWE_HIERARCHY_EXPANSION_ENABLED = os.environ.get("CTI_RAG_CWE_HIERARCHY_EXPANSION", "0") == "1"
 CWE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_SELECTOR", "0") == "1"
 CWE_PHRASE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_PHRASE_SELECTOR", "0") == "1"
+CWE_CROSSENCODER_ENABLED = os.environ.get("CTI_RAG_CWE_CROSSENCODER", "0") == "1"
 CWE_RESCUE_ENABLED = os.environ.get("CTI_RAG_CWE_RESCUE", "0") == "1"
 CWE_RESCUE_POOL_K = int(os.environ.get("CTI_RAG_CWE_RESCUE_POOL_K", "50"))
 CWE_RESCUE_MAX_ADD = int(os.environ.get("CTI_RAG_CWE_RESCUE_MAX_ADD", "1"))
@@ -1339,6 +1340,37 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             print(f"[CWE hierarchy expansion: {hierarchy_added}]\n")
         if debug_info is not None:
             debug_info["cwe_hierarchy_expansion"] = hierarchy_added
+
+    # Cross-encoder re-ranking of CWE chunks. Pure reordering, no stripping.
+    # Skipped on authoritative paths (CVE description bridge, high-confidence k-NN),
+    # since those decisions are factual lookups rather than retrieval guesses.
+    if CWE_CROSSENCODER_ENABLED and not bridge_fired and not knn_high_confidence:
+        cwe_positions = [i for i, c in enumerate(retrieved_chunks)
+                         if (c.get("source") == "CWE"
+                             or c.get("identifier", "").upper().startswith("CWE-"))]
+        if len(cwe_positions) >= 2:
+            from cwe_reranker import score_cwe_chunks
+            cwe_chunks_to_score = [retrieved_chunks[i] for i in cwe_positions]
+            scored = score_cwe_chunks(question, cwe_chunks_to_score)
+            reordered_cwe_iter = iter(sc[0] for sc in scored)
+            cwe_position_set = set(cwe_positions)
+            rebuilt = []
+            for i, c in enumerate(retrieved_chunks):
+                if i in cwe_position_set:
+                    rebuilt.append(next(reordered_cwe_iter))
+                else:
+                    rebuilt.append(c)
+            retrieved_chunks = rebuilt
+            if debug_info is not None:
+                debug_info["cwe_crossencoder"] = [
+                    {"identifier": c.get("identifier"),
+                     "name": c.get("name"),
+                     "score": s}
+                    for c, s in scored
+                ]
+            if not eval_mode and scored:
+                top = scored[0][0].get("identifier")
+                print(f"[CWE cross-encoder reranked: top={top} n={len(scored)}]\n")
 
     hist = _history_str(history)
     
