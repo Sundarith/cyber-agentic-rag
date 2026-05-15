@@ -46,6 +46,17 @@ CWE_HIERARCHY_EXPANSION_ENABLED = os.environ.get("CTI_RAG_CWE_HIERARCHY_EXPANSIO
 CWE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_SELECTOR", "0") == "1"
 CWE_PHRASE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_PHRASE_SELECTOR", "0") == "1"
 CWE_CROSSENCODER_ENABLED = os.environ.get("CTI_RAG_CWE_CROSSENCODER", "0") == "1"
+CWE_LISTWISE_ENABLED = os.environ.get("CTI_RAG_CWE_LISTWISE", "0") == "1"
+CWE_LISTWISE_MENU_SIZE = int(os.environ.get("CTI_RAG_CWE_LISTWISE_MENU_SIZE", "5"))
+CWE_LISTWISE_KNN_EXTRA = int(os.environ.get("CTI_RAG_CWE_LISTWISE_KNN_EXTRA", "3"))
+CWE_CE_VERIFIER_ENABLED = os.environ.get("CTI_RAG_CWE_CE_VERIFIER", "0") == "1"
+CWE_CE_VERIFIER_TOP_K = int(os.environ.get("CTI_RAG_CWE_CE_VERIFIER_TOP_K", "3"))
+CWE_CE_VERIFIER_MARGIN = float(os.environ.get("CTI_RAG_CWE_CE_VERIFIER_MARGIN", "1.3"))
+CWE_CE_HIERARCHY_ENABLED = os.environ.get("CTI_RAG_CWE_CE_HIERARCHY", "0") == "1"
+CWE_CE_HIERARCHY_ALPHA = float(os.environ.get("CTI_RAG_CWE_CE_HIERARCHY_ALPHA", "0.5"))
+CWE_SELF_CONSISTENCY_ENABLED = os.environ.get("CTI_RAG_CWE_SELF_CONSISTENCY", "0") == "1"
+CWE_SELF_CONSISTENCY_N = int(os.environ.get("CTI_RAG_CWE_SELF_CONSISTENCY_N", "3"))
+CWE_SELF_CONSISTENCY_TEMPERATURE = float(os.environ.get("CTI_RAG_CWE_SELF_CONSISTENCY_TEMPERATURE", "0.5"))
 CWE_HYDE_ENABLED = os.environ.get("CTI_RAG_CWE_HYDE", "0") == "1"
 CWE_HYDE_RETRIEVE_K = int(os.environ.get("CTI_RAG_CWE_HYDE_RETRIEVE_K", "15"))
 CWE_HYDE_INJECT_MAX = int(os.environ.get("CTI_RAG_CWE_HYDE_INJECT_MAX", "5"))
@@ -653,6 +664,27 @@ def _hyde_hypothesis(query: str) -> str:
         "Weakness description:"
     )
     return _llm(prompt)
+
+
+def _llm_samples(prompt: str, n: int, temperature: float) -> list[str]:
+    """Request N completions in one vLLM request (continuous batching makes this
+    near-free vs one request). Returns empty list on error so callers can fall
+    back to the deterministic _llm path."""
+    try:
+        r = requests.post(LLM_ENDPOINT, json={
+            "model": MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": 256,
+            "n": n,
+            "stream": False,
+        })
+        r.raise_for_status()
+        data = r.json()
+        return [c["message"]["content"] for c in data.get("choices", [])]
+    except Exception as e:
+        print(f"vLLM Connection Error (samples): {e}")
+        return []
 
 
 ENTITY_REVERSE_RE = re.compile(r'\b(what|which|list|show).{0,50}\b(techniques?|attacks?|tactics?|malwares?|software|tools?|groups?|actors?|do|does|use[sd]?|cause[sd]?)\b', re.IGNORECASE)
@@ -1434,14 +1466,27 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # Cross-encoder re-ranking of CWE chunks. Pure reordering, no stripping.
     # Skipped on authoritative paths (CVE description bridge, high-confidence k-NN),
     # since those decisions are factual lookups rather than retrieval guesses.
+    listwise_candidates: list[dict] = []
+    ce_scored: list[tuple[dict, float]] = []
     if CWE_CROSSENCODER_ENABLED and not bridge_fired and not knn_high_confidence:
         cwe_positions = [i for i, c in enumerate(retrieved_chunks)
                          if (c.get("source") == "CWE"
                              or c.get("identifier", "").upper().startswith("CWE-"))]
         if len(cwe_positions) >= 2:
-            from cwe_reranker import score_cwe_chunks
             cwe_chunks_to_score = [retrieved_chunks[i] for i in cwe_positions]
-            scored = score_cwe_chunks(question, cwe_chunks_to_score)
+            scored_detail: list[tuple[dict, float, float | None, float | None]] = []
+            if CWE_CE_HIERARCHY_ENABLED:
+                from cwe_reranker import score_cwe_chunks_hierarchical
+                scored_hier = score_cwe_chunks_hierarchical(
+                    question, cwe_chunks_to_score, id_to_chunk, alpha=CWE_CE_HIERARCHY_ALPHA,
+                )
+                scored = [(c, final) for c, final, _, _ in scored_hier]
+                scored_detail = [(c, final, v, d) for c, final, v, d in scored_hier]
+            else:
+                from cwe_reranker import score_cwe_chunks
+                scored = score_cwe_chunks(question, cwe_chunks_to_score)
+                scored_detail = [(c, s, None, None) for c, s in scored]
+            ce_scored = scored
             reordered_cwe_iter = iter(sc[0] for sc in scored)
             cwe_position_set = set(cwe_positions)
             rebuilt = []
@@ -1455,12 +1500,64 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
                 debug_info["cwe_crossencoder"] = [
                     {"identifier": c.get("identifier"),
                      "name": c.get("name"),
-                     "score": s}
-                    for c, s in scored
+                     "score": float(final),
+                     "vanilla_score": (float(v) if v is not None else None),
+                     "diff_score": (float(d) if d is not None else None)}
+                    for c, final, v, d in scored_detail
                 ]
+                debug_info["cwe_crossencoder_mode"] = (
+                    f"hierarchy(alpha={CWE_CE_HIERARCHY_ALPHA})"
+                    if CWE_CE_HIERARCHY_ENABLED else "vanilla"
+                )
             if not eval_mode and scored:
                 top = scored[0][0].get("identifier")
-                print(f"[CWE cross-encoder reranked: top={top} n={len(scored)}]\n")
+                mode_tag = "hier" if CWE_CE_HIERARCHY_ENABLED else "ce"
+                print(f"[CWE {mode_tag} reranked: top={top} n={len(scored)}]\n")
+
+            # Stage 3: listwise candidate menu. Cross-encoder top-K plus k-NN top-M (union).
+            # Ensures cases where cross-encoder is wrong but k-NN is right (e.g. CVE-2024-0853)
+            # still have the right CWE in the candidate set.
+            if CWE_LISTWISE_ENABLED:
+                seen_ids: set[str] = set()
+                for c, score in scored[:CWE_LISTWISE_MENU_SIZE]:
+                    cid = (c.get("identifier") or "").upper()
+                    if cid and cid not in seen_ids:
+                        listwise_candidates.append({
+                            "identifier": cid,
+                            "name": c.get("name") or "",
+                            "source": "cross_encoder",
+                            "score": float(score),
+                        })
+                        seen_ids.add(cid)
+                if knn_cwe_weights:
+                    extra = sorted(knn_cwe_weights.items(), key=lambda kv: -kv[1])[:CWE_LISTWISE_KNN_EXTRA]
+                    for cid, weight in extra:
+                        cid = cid.upper()
+                        if cid and cid not in seen_ids and cid in id_to_chunk:
+                            listwise_candidates.append({
+                                "identifier": cid,
+                                "name": id_to_chunk[cid].get("name", ""),
+                                "source": "knn",
+                                "score": float(weight),
+                            })
+                            seen_ids.add(cid)
+                # Ensure every menu CWE has its chunk in retrieved_chunks so the LLM
+                # can read its description from the Context section.
+                existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+                for cand in listwise_candidates:
+                    cid = cand["identifier"]
+                    if cid in id_to_chunk and cid not in existing_ids:
+                        retrieved_chunks.append(id_to_chunk[cid])
+                        existing_ids.add(cid)
+                if debug_info is not None:
+                    debug_info["listwise"] = {
+                        "candidates": listwise_candidates,
+                        "menu_size": CWE_LISTWISE_MENU_SIZE,
+                        "knn_extra": CWE_LISTWISE_KNN_EXTRA,
+                    }
+                if not eval_mode and listwise_candidates:
+                    menu_summary = ", ".join(c["identifier"] for c in listwise_candidates)
+                    print(f"[CWE listwise menu: {menu_summary}]\n")
 
     hist = _history_str(history)
     
@@ -1518,6 +1615,17 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
         if is_cve_query else ""
     )
 
+    listwise_rule = ""
+    if CWE_LISTWISE_ENABLED and listwise_candidates and is_cve_query:
+        menu_lines = [f"  - {c['identifier']}: {c['name']}" for c in listwise_candidates]
+        menu_str = "\n".join(menu_lines)
+        listwise_rule = (
+            "9c. CWE candidate menu — these CWEs are pre-selected as the most relevant for this CVE description "
+            "based on retrieval and cross-encoder similarity. The full description of each is in the Context above. "
+            "You MUST pick the single best match from this list. Do not propose any CWE outside this menu.\n"
+            f"{menu_str}"
+        )
+
     prompt = f"""You are a Cyber Threat Intelligence expert. Answer the question based ONLY on the provided context.
 
 CRITICAL RULES:
@@ -1531,6 +1639,7 @@ CRITICAL RULES:
 8. Do not add shell commands, scripts, vendor product names, or tool recommendations that are not verbatim in the context blocks above.
 {cve_rule}
 {hierarchy_rule}
+{listwise_rule}
 {eval_rule}
 
 Conversation history (for context only):
@@ -1543,7 +1652,45 @@ QUESTION: {question}
 
 ANSWER:"""
     if _t is not None: _t["prompt_built"] = time.time()
-    answer = _llm(prompt)
+    sc_debug: dict | None = None
+    if (CWE_SELF_CONSISTENCY_ENABLED and is_cve_query
+            and not bridge_fired and not knn_high_confidence
+            and CWE_SELF_CONSISTENCY_N >= 2):
+        samples = _llm_samples(
+            prompt, CWE_SELF_CONSISTENCY_N, CWE_SELF_CONSISTENCY_TEMPERATURE,
+        )
+        cwe_picks: list[str | None] = []
+        for s in samples:
+            m = re.findall(r"\bCWE-\d+\b", s or "", re.IGNORECASE)
+            cwe_picks.append(m[-1].upper() if m else None)
+        votes = Counter(c for c in cwe_picks if c)
+        chosen_cwe: str | None = None
+        if votes:
+            top_cwe, top_count = votes.most_common(1)[0]
+            # Use modal if it has a strict majority or tied-first; for tied first,
+            # `most_common` is order-stable to insertion, so the earliest-sampled
+            # winner is chosen — deterministic given the sample order.
+            chosen_cwe = top_cwe
+            try:
+                idx = next(i for i, c in enumerate(cwe_picks) if c == chosen_cwe)
+                answer = samples[idx]
+            except StopIteration:
+                answer = samples[0] if samples else _llm(prompt)
+        elif samples:
+            answer = samples[0]
+        else:
+            answer = _llm(prompt)
+        sc_debug = {
+            "n": CWE_SELF_CONSISTENCY_N,
+            "temperature": CWE_SELF_CONSISTENCY_TEMPERATURE,
+            "picks": cwe_picks,
+            "votes": dict(votes),
+            "chosen": chosen_cwe,
+        }
+    else:
+        answer = _llm(prompt)
+    if debug_info is not None and sc_debug is not None:
+        debug_info["self_consistency"] = sc_debug
     cwe_selection = _select_phrase_index_cwe(question, answer, retrieved_chunks)
     if not cwe_selection:
         cwe_selection = _select_context_cwe(question, answer, retrieved_chunks)
@@ -1556,6 +1703,63 @@ ANSWER:"""
             )
     if debug_info is not None:
         debug_info["cwe_selector"] = cwe_selection
+
+    # Post-LLM cross-encoder verifier. Conservative override fires only when:
+    #   (a) the LLM's CWE IS in the cross-encoder's scored list (so we have a fair
+    #       comparison; absence is treated as "LLM has external knowledge — trust it"),
+    #   (b) the LLM's CWE is ranked at or below CWE_CE_VERIFIER_TOP_K, and
+    #   (c) the top-1 cross-encoder score exceeds the LLM-CWE score by margin ≥ threshold.
+    if CWE_CE_VERIFIER_ENABLED and ce_scored and not bridge_fired and not knn_high_confidence:
+        answer_cwe_matches = re.findall(r"\bCWE-\d+\b", answer or "", re.IGNORECASE)
+        answer_cwe = answer_cwe_matches[-1].upper() if answer_cwe_matches else ""
+        ce_ids = [(c.get("identifier") or "").upper() for c, _ in ce_scored]
+        ce_score_by_id = {(c.get("identifier") or "").upper(): float(s) for c, s in ce_scored}
+        verifier_action: dict | None = None
+        verifier_skip_reason = ""
+        if not answer_cwe:
+            verifier_skip_reason = "no_answer_cwe"
+        elif answer_cwe not in ce_score_by_id:
+            verifier_skip_reason = "answer_cwe_not_in_ce_scored"
+        else:
+            answer_rank = ce_ids.index(answer_cwe)
+            answer_score = ce_score_by_id[answer_cwe]
+            if answer_rank < CWE_CE_VERIFIER_TOP_K:
+                verifier_skip_reason = "answer_in_top_k"
+            else:
+                top_chunk, top_score = ce_scored[0]
+                top_id = (top_chunk.get("identifier") or "").upper()
+                if not top_id or top_id == answer_cwe or answer_score <= 0:
+                    verifier_skip_reason = "no_distinct_top"
+                else:
+                    margin = top_score / answer_score
+                    if margin < CWE_CE_VERIFIER_MARGIN:
+                        verifier_skip_reason = "margin_below_threshold"
+                    else:
+                        verifier_action = {
+                            "previous": answer_cwe,
+                            "selected": top_id,
+                            "name": top_chunk.get("name") or top_id,
+                            "reason": "ce_verifier_override",
+                            "answer_rank": answer_rank,
+                            "answer_score": answer_score,
+                            "top_score": top_score,
+                            "margin": margin,
+                        }
+                        answer = _rewrite_cwe_answer(answer, verifier_action)
+                        if not eval_mode:
+                            print(
+                                f"[CE verifier override: {answer_cwe} → "
+                                f"{top_id} (rank={answer_rank}, margin={margin:.2f})]\n"
+                            )
+        if debug_info is not None:
+            debug_info["ce_verifier"] = {
+                "answer_cwe": answer_cwe,
+                "top_k": CWE_CE_VERIFIER_TOP_K,
+                "margin_threshold": CWE_CE_VERIFIER_MARGIN,
+                "skip_reason": verifier_skip_reason,
+                "action": verifier_action,
+            }
+
     if _t is not None:
         _t["llm"] = time.time()
         if debug_info is not None:
