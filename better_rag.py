@@ -13,6 +13,7 @@ import numpy as np
 import requests
 from collections import Counter, defaultdict
 from pathlib import Path
+import torch
 from sentence_transformers import SentenceTransformer
 
 ATTACK_CHUNKS = Path("data/processed/attack_chunks.jsonl")
@@ -22,6 +23,7 @@ CVE_CHUNKS    = Path("data/processed/cve_chunks.jsonl")
 RELATIONS     = Path("data/processed/entity_relations.json")
 CAPEC_RELS    = Path("data/processed/capec_attack_relations.json")
 CAPEC_CWE_RELS = Path("data/processed/capec_cwe_relations.json")
+CWE_PHRASE_INDEX = Path("data/processed/cwe_phrase_index.json")
 LLM_ENDPOINT = "http://localhost:8000/v1/chat/completions"   # vLLM OpenAI-compatible API
 MODEL        = "Qwen/Qwen2.5-7B-Instruct"
 EMBEDDER     = "BAAI/bge-small-en-v1.5"
@@ -31,9 +33,21 @@ HYBRID_ALPHA = 0.5   # 0 = pure BM25, 1 = pure embedding
 TOP_K        = 8
 EMB_CACHE    = Path("data/processed/chunk_embs.npy")
 KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
-KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.6"))
+KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.75"))
+KNN_CONFIDENCE_MARGIN = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_MARGIN", "1.25"))
 CWE_KEYWORD_ANCHORS_ENABLED = os.environ.get("CTI_RAG_CWE_KEYWORD_ANCHORS", "0") == "1"
+CWE_HIERARCHY_EXPANSION_ENABLED = os.environ.get("CTI_RAG_CWE_HIERARCHY_EXPANSION", "0") == "1"
+CWE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_SELECTOR", "0") == "1"
+CWE_PHRASE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_PHRASE_SELECTOR", "0") == "1"
+CWE_RESCUE_ENABLED = os.environ.get("CTI_RAG_CWE_RESCUE", "0") == "1"
+CWE_RESCUE_POOL_K = int(os.environ.get("CTI_RAG_CWE_RESCUE_POOL_K", "50"))
+CWE_RESCUE_MAX_ADD = int(os.environ.get("CTI_RAG_CWE_RESCUE_MAX_ADD", "1"))
+CWE_RESCUE_MAX_RANK = int(os.environ.get("CTI_RAG_CWE_RESCUE_MAX_RANK", "2"))
+CWE_RESCUE_MIN_SCORE = float(os.environ.get("CTI_RAG_CWE_RESCUE_MIN_SCORE", "0.70"))
+CWE_RESCUE_MIN_LEXICAL_SCORE = float(os.environ.get("CTI_RAG_CWE_RESCUE_MIN_LEXICAL_SCORE", "4.0"))
+CWE_RESCUE_MIN_LEXICAL_TERMS = int(os.environ.get("CTI_RAG_CWE_RESCUE_MIN_LEXICAL_TERMS", "2"))
 PROFILE = "--profile" in sys.argv or os.environ.get("CTI_RAG_PROFILE", "0") == "1"
+CAPTURE_TIMING = PROFILE or os.environ.get("CTI_RAG_CAPTURE_TIMING", "0") == "1"
 
 
 def _profile_print(*args, **kwargs) -> None:
@@ -52,6 +66,23 @@ CWE_KEYWORD_ANCHORS: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"\bout[- ]of[- ]bounds read\b", re.IGNORECASE), "CWE-125"),
     (re.compile(r"\bout[- ]of[- ]bounds write\b", re.IGNORECASE), "CWE-787"),
     (re.compile(r"\bunrestricted (file )?upload\b|\barbitrary file upload\b", re.IGNORECASE), "CWE-434"),
+)
+
+# Conservative post-generation selector for cases where the correct CWE is already
+# in the retrieved context but the small LLM chooses a near-miss.
+CWE_SELECTOR_RULES: tuple[tuple[str, re.Pattern, str], ...] = (
+    ("null_pointer_deref", re.compile(r"\bnull pointer dereference\b|\bnull dereference\b", re.IGNORECASE), "CWE-476"),
+    ("use_after_free", re.compile(r"\buse[- ]after[- ]free\b|\buaf\b", re.IGNORECASE), "CWE-416"),
+    ("out_of_bounds_read", re.compile(r"\bout[- ]of[- ]bounds read\b", re.IGNORECASE), "CWE-125"),
+    ("out_of_bounds_write", re.compile(r"\bout[- ]of[- ]bounds write\b", re.IGNORECASE), "CWE-787"),
+    ("path_traversal", re.compile(r"\b(path|directory) traversal\b|\blocal file inclusion\b|\bLFI\b", re.IGNORECASE), "CWE-22"),
+    ("dangerous_file_upload", re.compile(r"\bunrestricted (file )?upload\b|\barbitrary file upload\b|\bupload[^.]{0,80}dangerous file\b", re.IGNORECASE), "CWE-434"),
+    ("command_injection", re.compile(r"\bcommand injection\b|\bshell commands?\b|\barbitrary commands?\b", re.IGNORECASE), "CWE-77"),
+    ("missing_authorization", re.compile(r"\bmissing authorization\b|\bwithout authorization\b|\bdoes not (check|have) authorization\b|\bdoes not have authorisation\b|\bunauthori[sz]ed [^.]{0,60}\b(access|action|function|operation|users?)\b", re.IGNORECASE), "CWE-862"),
+    ("improper_certificate_validation", re.compile(r"\b(improper|missing|incorrect|fails? to|does not) [^.]{0,60}certificate validation\b|\bvalidate [^.]{0,40}certificate\b", re.IGNORECASE), "CWE-295"),
+    ("csrf_missing_check", re.compile(r"\b(lacking|lack of|no|missing|without|does not have) (?:a )?CSRF check\b|\bCSRF check (?:is )?(missing|not in place)\b", re.IGNORECASE), "CWE-352"),
+    ("xss", re.compile(r"\bcross[- ]site scripting\b|\bXSS\b", re.IGNORECASE), "CWE-79"),
+    ("csrf", re.compile(r"\bcross[- ]site request forgery\b|\bCSRF\b", re.IGNORECASE), "CWE-352"),
 )
 
 # ── data loading ──────────────────────────────────────────────────────────────
@@ -123,6 +154,37 @@ if RELATIONS.exists():
             tool_to_groups.setdefault(t.lower(), []).append(g)
     print(f"  Group↔malware: {sum(len(v) for v in group_to_malware.values())} edges; group↔tools: {sum(len(v) for v in group_to_tools.values())} edges")
 
+# Resolve Aliases: Add aliases to the entity-to-technique indices
+_ALSO_KNOWN_RE = re.compile(r'\*\*Also known as:\*\*\s*(.+)')
+alias_count = 0
+for c in chunks:
+    ctype = c.get("type")
+    if ctype in ("group", "malware", "tool", "campaign"):
+        primary_name = c["name"].lower()
+        idx_dict = {
+            "group": group_to_techs,
+            "campaign": campaign_to_techs,
+            "malware": malware_to_techs,
+            "tool": tool_to_techs
+        }.get(ctype)
+        if not idx_dict: continue
+        
+        # Extract aliases from text
+        m = _ALSO_KNOWN_RE.search(c["text"])
+        if m:
+            aliases = [a.strip().lower() for a in m.group(1).split(", ")]
+            primary_techs = idx_dict.get(primary_name, [])
+            for alias in aliases:
+                if alias and alias != primary_name:
+                    # Map alias to same techniques as primary name
+                    alias_techs = idx_dict.setdefault(alias, [])
+                    for pt in primary_techs:
+                        if pt not in alias_techs:
+                            alias_techs.append(pt)
+                    display_name.setdefault(alias, c["name"])
+                    alias_count += 1
+print(f"  Indexed {alias_count} entity aliases")
+
 capec_to_attack: dict[str, list] = defaultdict(list)
 attack_to_capec: dict[str, list] = {}
 if CAPEC_RELS.exists():
@@ -180,6 +242,15 @@ for tid, capec_ids in attack_to_capec.items():
             chunk_graph[cid_upper].add(tid_upper)
 print(f"  Graph built with {len(chunk_graph)} connected nodes")
 
+# Build CWE child index for bidirectional hierarchy expansion
+child_cwe_ids: dict[str, list[str]] = defaultdict(list)
+for c in chunks:
+    if c.get("source") == "CWE":
+        cid = c.get("identifier", "").upper()
+        for pid in c.get("parent_cwe_ids", []):
+            child_cwe_ids[pid.upper()].append(cid)
+print(f"  CWE child index built for {len(child_cwe_ids)} parent CWEs")
+
 # technique-name index — sorted longest-first so "Scanning IP Blocks" wins over "Active Scanning"
 _tech_name_index: list[tuple[str, int]] = sorted(
     [(c["name"].lower(), i) for i, c in enumerate(chunks) if c.get("name")],
@@ -191,6 +262,85 @@ _tok_re = re.compile(r'\w+')
 
 def _tokenize(text: str) -> list[str]:
     return _tok_re.findall(text.lower())
+
+
+_CWE_ANCHOR_STOPWORDS = {
+    "the", "and", "for", "with", "without", "from", "into", "onto", "that", "this",
+    "when", "where", "which", "while", "before", "after", "within", "using", "used",
+    "uses", "use", "user", "users", "product", "software", "application", "system",
+    "component", "resource", "resources", "data", "input", "output", "value", "values",
+    "element", "elements", "special", "proper", "properly", "incorrect", "incorrectly",
+    "improper", "improperly", "neutralization", "neutralize", "neutralizes", "weakness",
+    "vulnerability", "vulnerabilities", "attacker", "attackers", "allows", "allow",
+    "could", "would", "should", "might", "able", "certain", "specific", "external",
+    "internal", "related", "intended", "attempts", "attempt", "perform", "performs",
+    "performed", "common", "different", "various", "malicious", "crafted", "arbitrary",
+    "a", "an", "as", "at", "be", "been", "being", "by", "can", "cannot", "do", "does",
+    "due", "etc", "have", "has", "having", "if", "in", "is", "it", "its", "may", "must",
+    "not", "of", "on", "once", "only", "or", "other", "same", "see", "some", "such",
+    "than", "then", "there", "these", "they", "their", "them", "those", "to", "was",
+    "were", "will", "cwe", "ref", "description", "following", "contain", "contains",
+    "containing", "ensure", "provide", "provides", "provided", "make", "makes", "made",
+    "get", "set", "called", "call", "cause", "causes", "causing", "lead", "leads",
+    "result", "results", "occur", "occurs", "issue", "issues", "case", "cases",
+}
+
+
+def _anchor_token(token: str) -> str:
+    token = token.lower()
+    if len(token) > 4 and token.endswith("ies"):
+        return token[:-3] + "y"
+    if len(token) > 4 and token.endswith("es"):
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith(("ss", "us")):
+        return token[:-1]
+    return token
+
+
+def _normalize_anchor_text(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"['`\"]", " ", text)
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _anchor_terms(text: str) -> set[str]:
+    terms = set()
+    for token in _normalize_anchor_text(text).split():
+        term = _anchor_token(token)
+        if len(term) < 3 or term in _CWE_ANCHOR_STOPWORDS:
+            continue
+        terms.add(term)
+    return terms
+
+
+def _anchor_phrase(text: str) -> str:
+    return " ".join(_anchor_token(t) for t in _normalize_anchor_text(text).split())
+
+
+def _extract_cwe_anchor_profile(c: dict) -> dict:
+    name = c.get("name", "")
+
+    phrases = set()
+    for raw in [name]:
+        phrase = _anchor_phrase(raw)
+        if len(phrase.split()) >= 2:
+            phrases.add(phrase)
+    for raw in re.findall(r"\(([^)]+)\)", name):
+        raw = raw.strip(" '\"")
+        phrase = _anchor_phrase(raw)
+        if len(phrase) >= 4 and (len(phrase.split()) >= 2 or raw.isupper()):
+            phrases.add(phrase)
+    for raw in re.findall(r"'([^']+)'", name):
+        phrase = _anchor_phrase(raw)
+        if len(phrase.split()) >= 2:
+            phrases.add(phrase)
+
+    return {
+        "phrases": phrases,
+        "name_terms": _anchor_terms(name),
+        "desc_terms": set(),
+    }
 
 _N = len(chunks)
 _doc_len: np.ndarray = np.zeros(_N, dtype=np.int32)
@@ -221,7 +371,7 @@ _inv_idx_np: dict[str, tuple[np.ndarray, np.ndarray]] = {
 _thread_local = threading.local()
 
 print("Loading embedder...")
-embedder = SentenceTransformer(EMBEDDER, device="cuda:0")
+embedder = SentenceTransformer(EMBEDDER, device="cuda" if torch.cuda.is_available() else "cpu")
 try:
     _embedder_1 = SentenceTransformer(EMBEDDER, device="cuda:1")
     print("  Second embedder on cuda:1 ready for parallel eval")
@@ -262,6 +412,36 @@ _root_cause_mask  = np.array([
     c.get("source") == "CWE" or c.get("type") in ("weakness", "category", "view")
     for c in chunks
 ], dtype=bool)
+
+_cwe_anchor_profiles: dict[str, dict] = {
+    c.get("identifier", "").upper(): _extract_cwe_anchor_profile(c)
+    for c in chunks
+    if c.get("source") == "CWE" and c.get("identifier")
+}
+_cwe_anchor_df: Counter = Counter()
+for profile in _cwe_anchor_profiles.values():
+    for term in profile["name_terms"] | profile["desc_terms"]:
+        _cwe_anchor_df[term] += 1
+_cwe_anchor_n = max(1, len(_cwe_anchor_profiles))
+for profile in _cwe_anchor_profiles.values():
+    terms = profile["name_terms"] | profile["desc_terms"]
+    profile["term_weights"] = {
+        term: math.log((_cwe_anchor_n + 1) / (_cwe_anchor_df[term] + 1)) + 1.0
+        for term in terms
+    }
+print(f"  CWE lexical anchors built for {len(_cwe_anchor_profiles)} CWEs")
+
+_cwe_phrase_index: dict[str, list[dict]] = {}
+if CWE_PHRASE_SELECTOR_ENABLED:
+    if CWE_PHRASE_INDEX.exists():
+        _raw_phrase_index = json.loads(CWE_PHRASE_INDEX.read_text(encoding="utf-8"))
+        _cwe_phrase_index = {
+            cwe_id.upper(): row.get("phrases", [])
+            for cwe_id, row in _raw_phrase_index.items()
+        }
+        print(f"  CWE phrase selector index loaded for {len(_cwe_phrase_index)} CWEs")
+    else:
+        print(f"  CWE phrase selector requested but {CWE_PHRASE_INDEX} is missing")
 
 # Name → chunk index for O(1) entity lookups (replaces inner loops over all chunks)
 _name_to_idx: dict[str, int] = {
@@ -445,7 +625,17 @@ WHAT_IS_RE        = re.compile(r'\bwhat\s+is\b', re.IGNORECASE)
 TARGET_MALWARE_RE = re.compile(r'\b(malwares?|software)\b', re.IGNORECASE)
 TARGET_TOOLS_RE   = re.compile(r'\btools?\b', re.IGNORECASE)
 TARGET_GROUPS_RE  = re.compile(r'\b(groups?|actors?|threat\s+actors?)\b', re.IGNORECASE)
-ROOT_CAUSE_RE     = re.compile(r'\b(root cause|vulnerability|flaw|cwe|bug|code|architectural|improper|validation)\b', re.IGNORECASE)
+ROOT_CAUSE_RE     = re.compile(
+    r'\b(?:'
+    r'CWE-\d+|'
+    r'CWE(?:s)?|'
+    r'Common\s+Weakness\s+Enumeration|'
+    r'(?:root\s+cause|weakness|vulnerabilit(?:y|ies)|flaw|bug)\s+(?:CWE|mapping|classification|ID)|'
+    r'(?:map|classify|assign)\b.{0,80}\bCWE|'
+    r'CWE\b.{0,80}\b(?:map|mapping|classif(?:y|ication)|root\s+cause|weakness|underl(?:y|ies|ying))'
+    r')\b',
+    re.IGNORECASE,
+)
 DETECTION_RE      = re.compile(r'\b(detect|monitor|analytic|log|sensor|data component)\b', re.IGNORECASE)
 MITIGATION_RE     = re.compile(r'\b(mitigation|mitigate|prevent|protect|remediate)\b', re.IGNORECASE)
 CAPEC_RE          = re.compile(r'\b(attack patterns?|capec|exploit patterns?|attack techniques?)\b', re.IGNORECASE)
@@ -493,6 +683,215 @@ def _find_all_entities_in_query(question: str) -> list:
                 found.append((name, etype))
                 matched_spans.append((m.start(), m.end()))
     return found
+
+
+def _cwe_ids_from_answer(answer: str) -> list[str]:
+    seen = []
+    for match in re.findall(r"\bCWE-\d+\b", answer or "", re.IGNORECASE):
+        cwe_id = match.upper()
+        if cwe_id not in seen:
+            seen.append(cwe_id)
+    return seen
+
+
+def _select_context_cwe(question: str, answer: str, retrieved_chunks: list[dict]) -> dict | None:
+    if not CWE_SELECTOR_ENABLED:
+        return None
+    if not (ROOT_CAUSE_RE.search(question) or re.search(r"\bCVE-\d{4}-\d+\b", question, re.IGNORECASE)):
+        return None
+
+    context_cwes = {
+        c.get("identifier", "").upper()
+        for c in retrieved_chunks
+        if c.get("identifier", "").upper().startswith("CWE-")
+    }
+    if not context_cwes:
+        return None
+
+    predicted = (_cwe_ids_from_answer(answer) or [""])[-1]
+    for reason, pattern, cwe_id in CWE_SELECTOR_RULES:
+        cwe_upper = cwe_id.upper()
+        if cwe_upper not in context_cwes or not pattern.search(question):
+            continue
+        if cwe_upper == predicted:
+            return None
+        if cwe_upper != predicted:
+            cwe_chunk = id_to_chunk.get(cwe_upper, {})
+            return {
+                "selected": cwe_upper,
+                "previous": predicted,
+                "reason": reason,
+                "name": cwe_chunk.get("name", ""),
+            }
+    return None
+
+
+def _select_phrase_index_cwe(question: str, answer: str, retrieved_chunks: list[dict]) -> dict | None:
+    if not CWE_PHRASE_SELECTOR_ENABLED or not _cwe_phrase_index:
+        return None
+    if not (ROOT_CAUSE_RE.search(question) or re.search(r"\bCVE-\d{4}-\d+\b", question, re.IGNORECASE)):
+        return None
+
+    context_cwes = {
+        c.get("identifier", "").upper()
+        for c in retrieved_chunks
+        if c.get("identifier", "").upper().startswith("CWE-")
+    }
+    if not context_cwes:
+        return None
+
+    query_norm = _normalize_anchor_text(question)
+    matches = []
+    for cwe_id in context_cwes:
+        for phrase_row in _cwe_phrase_index.get(cwe_id, []):
+            phrase = phrase_row.get("phrase", "")
+            sources = phrase_row.get("sources", [])
+            if "alternate_term" not in sources:
+                continue
+            if not phrase or not re.search(rf"\b{re.escape(phrase)}\b", query_norm):
+                continue
+            matches.append({
+                "selected": cwe_id,
+                "phrase": phrase,
+                "sources": sources,
+                "score": (len(phrase.split()), len(phrase)),
+            })
+
+    if not matches:
+        return None
+    matches.sort(key=lambda item: item["score"], reverse=True)
+    selected = matches[0]
+    predicted = (_cwe_ids_from_answer(answer) or [""])[-1]
+    if selected["selected"] == predicted:
+        return None
+    predicted_chunk = id_to_chunk.get(predicted, {})
+    if selected["selected"] in {p.upper() for p in predicted_chunk.get("parent_cwe_ids", [])}:
+        return None
+    cwe_chunk = id_to_chunk.get(selected["selected"], {})
+    return {
+        "selected": selected["selected"],
+        "previous": predicted,
+        "reason": "cwe_phrase_index",
+        "name": cwe_chunk.get("name", ""),
+        "phrase": selected["phrase"],
+        "sources": selected["sources"],
+    }
+
+
+def _rewrite_cwe_answer(answer: str, selection: dict) -> str:
+    selected = selection["selected"]
+    name = selection.get("name") or selected
+    return f"The vulnerability description matches {selected}: {name}.\n{selected}"
+
+
+def _cwe_only_candidates(query: str, k: int = CWE_RESCUE_POOL_K) -> list[dict]:
+    q_emb = _get_embedder().encode(
+        [query],
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+    )[0]
+    emb_sc = chunk_embs @ q_emb
+    bm25_sc = _bm25_scores(_tokenize(query))
+    if bm25_sc.max() > 0:
+        bm25_sc = bm25_sc / bm25_sc.max()
+    combined = HYBRID_ALPHA * emb_sc + (1 - HYBRID_ALPHA) * bm25_sc
+    if ROOT_CAUSE_RE.search(query):
+        combined[_root_cause_mask] += 0.3
+
+    cwe_indices = np.flatnonzero(_cwe_source_mask)
+    if cwe_indices.size == 0:
+        return []
+    top_local = np.argsort(-combined[cwe_indices])[:k]
+    top_idx = cwe_indices[top_local]
+    return [
+        {
+            "identifier": chunks[int(idx)].get("identifier", "").upper(),
+            "name": chunks[int(idx)].get("name", ""),
+            "score": float(combined[int(idx)]),
+            "chunk": chunks[int(idx)],
+        }
+        for idx in top_idx
+    ]
+
+
+def _select_cwe_rescue_candidates(
+    question: str,
+    candidates: list[dict],
+    existing_cwes: set[str],
+    knn_weights: dict[str, float],
+) -> list[dict]:
+    if not candidates:
+        return []
+
+    selected: list[dict] = []
+    query_norm = _normalize_anchor_text(question)
+    query_terms = _anchor_terms(question)
+    ranked: list[dict] = []
+
+    for rank, candidate in enumerate(candidates, start=1):
+        if rank > CWE_RESCUE_MAX_RANK:
+            break
+
+        cwe_id = candidate["identifier"]
+        if cwe_id in existing_cwes:
+            continue
+
+        score = candidate["score"]
+        if score < CWE_RESCUE_MIN_SCORE:
+            continue
+
+        profile = _cwe_anchor_profiles.get(cwe_id)
+        if not profile:
+            continue
+
+        phrase_hits = sorted(
+            phrase for phrase in profile["phrases"]
+            if phrase and re.search(rf"\b{re.escape(phrase)}\b", query_norm)
+        )
+        term_weights = profile.get("term_weights", {})
+        name_hits = sorted(
+            term for term in (query_terms & profile["name_terms"])
+            if term_weights.get(term, 0.0) >= 2.0
+        )
+        desc_hits = []
+        lexical_terms = sorted(set(name_hits))
+        lexical_score = (
+            8.0 * len(phrase_hits)
+            + 1.5 * sum(term_weights.get(term, 0.0) for term in name_hits)
+        )
+        if not phrase_hits and len(lexical_terms) < CWE_RESCUE_MIN_LEXICAL_TERMS:
+            continue
+        single_rare_name_hit = (
+            len(name_hits) == 1
+            and term_weights.get(name_hits[0], 0.0) >= 4.5
+        )
+        has_specific_overlap = (
+            bool(phrase_hits)
+            or len(name_hits) >= 2
+            or single_rare_name_hit
+        )
+        if not has_specific_overlap:
+            continue
+        if lexical_score < CWE_RESCUE_MIN_LEXICAL_SCORE and not phrase_hits:
+            continue
+
+        ranked.append({
+            **candidate,
+            "rank": rank,
+            "reason": "cwe_auto_lexical_anchor",
+            "lexical_score": lexical_score,
+            "phrase_hits": phrase_hits,
+            "name_hits": name_hits,
+            "desc_hits": desc_hits,
+            "knn_weight": knn_weights.get(cwe_id, 0.0),
+        })
+
+    ranked.sort(key=lambda c: (-c["lexical_score"], c["rank"], -c["score"]))
+    for candidate in ranked:
+        selected.append(candidate)
+        if len(selected) >= CWE_RESCUE_MAX_ADD:
+            break
+    return selected
 
 
 
@@ -543,7 +942,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             print(f"[Reverse entity lookup: {display} ({entity_type}) → {len(idx[name])} techniques]\n")
             return text, [], text
 
-    _t = {} if PROFILE else None
+    _t = {} if CAPTURE_TIMING else None
     if _t is not None: _t["start"] = time.time()
 
     retrieved = retrieve(question)
@@ -560,6 +959,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             }
             for c, score in retrieved
         ]
+
     if _t is not None: _t["retrieve"] = time.time()
 
     score_info = ", ".join(f"{c['identifier'] or c.get('name', '?')} ({s:.2f})" for c, s in retrieved)
@@ -634,7 +1034,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
 
     neighbor_ids = set()
     added_ids = set(c.get("identifier", "").upper() for c in retrieved_chunks if c.get("identifier"))
-    
+
     # 1st Hop
     hop1_ids = set()
     for c in retrieved_chunks:
@@ -744,12 +1144,15 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             if not eval_mode:
                 print(f"[CVE description bridge: {cve_with_cwes['identifier']} → {sorted(nvd_cwes)}]\n")
 
+    knn_high_confidence = False
+    knn_cwe_weights: dict[str, float] = {}
+
     # k-NN CWE fallback: for unmapped CVE descriptions (direct bridge didn't fire),
     # find the N most similar mapped CVEs and vote on their CWEs, weighted by similarity.
     # High-confidence votes (top CWE wins enough weighted signal) are treated as
     # authoritative — strip competing CWE chunks like the direct bridge does. Lower
     # confidence stays as a soft hint (inject without stripping).
-    if not _cve_id_m and not bridge_fired and _mapped_cve_indices.size:
+    if not bridge_fired and _mapped_cve_indices.size:
         q_emb_knn = _get_embedder().encode([question], normalize_embeddings=True, convert_to_numpy=True)[0]
         mapped_sims = chunk_embs[_mapped_cve_indices] @ q_emb_knn
         top_n = max(1, min(KNN_CWE_NEIGHBORS, _mapped_cve_indices.size))
@@ -774,20 +1177,31 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
         if cwe_weights:
             sorted_cwes = sorted(cwe_weights.items(), key=lambda kv: -kv[1])
             knn_weights = {cid: weight for cid, weight in sorted_cwes}
+            knn_cwe_weights = knn_weights
             top_cwe, top_weight = sorted_cwes[0]
+            second_weight = sorted_cwes[1][1] if len(sorted_cwes) > 1 else 0.0
             top_share = top_weight / total_weight if total_weight else 0.0
+            margin_ratio = (top_weight / second_weight) if second_weight else float("inf")
+            high_confidence = (
+                top_share >= KNN_CONFIDENCE_THRESHOLD
+                and margin_ratio >= KNN_CONFIDENCE_MARGIN
+            )
             if debug_info is not None:
                 debug_info["knn_cwe"] = {
                     "neighbors": knn_neighbors,
                     "weights": knn_weights,
                     "top_cwe": top_cwe,
                     "top_share": top_share,
+                    "second_weight": second_weight,
+                    "margin_ratio": margin_ratio,
+                    "margin_threshold": KNN_CONFIDENCE_MARGIN,
                     "threshold": KNN_CONFIDENCE_THRESHOLD,
                     "neighbor_count": top_n,
-                    "mode": "high_confidence" if top_share >= KNN_CONFIDENCE_THRESHOLD else "soft_hint",
+                    "mode": "high_confidence" if high_confidence else "soft_hint",
                 }
 
-            if top_share >= KNN_CONFIDENCE_THRESHOLD:
+            if high_confidence:
+                knn_high_confidence = True
                 # High confidence: strip non-voted CWE chunks (authoritative signal)
                 retrieved_chunks = [c for c in retrieved_chunks
                                     if not (c.get("source") == "CWE"
@@ -805,7 +1219,28 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
                     if cwe_id in id_to_chunk and cwe_id not in existing_ids:
                         retrieved_chunks.append(id_to_chunk[cwe_id])
                 if not eval_mode:
-                    print(f"[k-NN CWE soft hint: {top_voted} top share={top_share:.0%}]\n")
+                    # Contextual Imputation: Add brief descriptions of the nearest neighbors
+                    # to help the LLM "impute" the missing context for the unmapped CVE.
+                    neighbor_context_added = False
+                    for neighbor in knn_neighbors[:2]: # Only top 2 to save tokens
+                        n_id = neighbor["identifier"]
+                        n_chunk = id_to_chunk.get(n_id)
+                        if n_chunk:
+                            desc_snippet = n_chunk["text"][:300].replace("\n", " ").strip() + "..."
+                            imputed_chunk = {
+                                "type": "SIMILAR_VULNERABILITY",
+                                "identifier": n_id,
+                                "name": n_chunk.get("name", ""),
+                                "text": f"Similar vulnerability {n_id} is mapped to {neighbor.get('cwe_ids')}. Description: {desc_snippet}",
+                                "source": "k-NN Imputation"
+                            }
+                            retrieved_chunks.append(imputed_chunk)
+                            neighbor_context_added = True
+
+                    msg = f"[k-NN CWE soft hint: {top_voted} top share={top_share:.0%}]"
+                    if neighbor_context_added:
+                        msg += " (Context imputed)"
+                    print(msg + "\n")
 
     if CWE_KEYWORD_ANCHORS_ENABLED and not _cve_id_m and not bridge_fired:
         anchored_cwes = []
@@ -820,6 +1255,90 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             print(f"[CWE keyword anchors: {anchored_cwes}]\n")
         if debug_info is not None:
             debug_info["keyword_anchors"] = anchored_cwes
+
+    # Experimental CWE-only rescue for long CVE-description prompts. This is a soft
+    # add based on retrieval agreement: no phrase-to-CWE mapping, and no stripping.
+    if (
+        CWE_RESCUE_ENABLED
+        and not _cve_id_m
+        and not bridge_fired
+        and ROOT_CAUSE_RE.search(question)
+        and len(_tokenize(question)) > 15
+    ):
+        cwe_candidates = _cwe_only_candidates(question)
+        existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+        existing_cwes = {cid for cid in existing_ids if cid.startswith("CWE-")}
+        rescue_selected = _select_cwe_rescue_candidates(question, cwe_candidates, existing_cwes, knn_cwe_weights)
+        rescue_added = []
+        for candidate in rescue_selected:
+            cwe_id = candidate["identifier"]
+            if cwe_id in id_to_chunk and cwe_id not in existing_ids:
+                retrieved_chunks.append(id_to_chunk[cwe_id])
+                existing_ids.add(cwe_id)
+                rescue_added.append(candidate)
+
+        def _debug_candidate(candidate: dict) -> dict:
+            return {
+                "identifier": candidate["identifier"],
+                "name": candidate["name"],
+                "score": candidate["score"],
+                "rank": candidate.get("rank"),
+                "reason": candidate.get("reason"),
+                "lexical_score": candidate.get("lexical_score"),
+                "phrase_hits": candidate.get("phrase_hits"),
+                "name_hits": candidate.get("name_hits"),
+                "desc_hits": candidate.get("desc_hits"),
+                "knn_weight": candidate.get("knn_weight"),
+            }
+
+        if debug_info is not None:
+            debug_info["cwe_rescue"] = {
+                "added": [_debug_candidate(c) for c in rescue_added],
+                "selected": [_debug_candidate(c) for c in rescue_selected],
+                "top_candidates": [_debug_candidate({**c, "rank": i + 1}) for i, c in enumerate(cwe_candidates[:10])],
+                "pool_k": CWE_RESCUE_POOL_K,
+                "max_add": CWE_RESCUE_MAX_ADD,
+                "max_rank": CWE_RESCUE_MAX_RANK,
+                "min_score": CWE_RESCUE_MIN_SCORE,
+                "min_lexical_score": CWE_RESCUE_MIN_LEXICAL_SCORE,
+                "min_lexical_terms": CWE_RESCUE_MIN_LEXICAL_TERMS,
+                "knn_weights_available": bool(knn_cwe_weights),
+            }
+        if rescue_added and not eval_mode:
+            added_ids = [c["identifier"] for c in rescue_added]
+            print(f"[CWE rescue: added {added_ids}]\n")
+
+    # Experimental hierarchy expansion for unmapped CVE cases. When CWE evidence is
+    # soft, add both parent and child CWE candidates so the full hierarchy is visible
+    # to the model. Do not run after authoritative NVD or high-confidence k-NN bridges.
+    if CWE_HIERARCHY_EXPANSION_ENABLED and not bridge_fired and not knn_high_confidence:
+        existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
+        hierarchy_added = []
+        for c in list(retrieved_chunks):
+            cid = c.get("identifier", "").upper()
+            if not cid.startswith("CWE-"):
+                continue
+            
+            # Add parents (upwards)
+            for parent_id in c.get("parent_cwe_ids", []):
+                parent_upper = parent_id.upper()
+                if parent_upper in id_to_chunk and parent_upper not in existing_ids:
+                    retrieved_chunks.append(id_to_chunk[parent_upper])
+                    existing_ids.add(parent_upper)
+                    hierarchy_added.append(parent_upper)
+            
+            # Add children (downwards)
+            for child_id in child_cwe_ids.get(cid, []):
+                child_upper = child_id.upper()
+                if child_upper in id_to_chunk and child_upper not in existing_ids:
+                    retrieved_chunks.append(id_to_chunk[child_upper])
+                    existing_ids.add(child_upper)
+                    hierarchy_added.append(child_upper)
+
+        if hierarchy_added and not eval_mode:
+            print(f"[CWE hierarchy expansion: {hierarchy_added}]\n")
+        if debug_info is not None:
+            debug_info["cwe_hierarchy_expansion"] = hierarchy_added
 
     hist = _history_str(history)
     
@@ -903,8 +1422,31 @@ QUESTION: {question}
 ANSWER:"""
     if _t is not None: _t["prompt_built"] = time.time()
     answer = _llm(prompt)
+    cwe_selection = _select_phrase_index_cwe(question, answer, retrieved_chunks)
+    if not cwe_selection:
+        cwe_selection = _select_context_cwe(question, answer, retrieved_chunks)
+    if cwe_selection:
+        answer = _rewrite_cwe_answer(answer, cwe_selection)
+        if not eval_mode:
+            print(
+                f"[CWE selector: {cwe_selection['previous'] or 'none'} → "
+                f"{cwe_selection['selected']} ({cwe_selection['reason']})]\n"
+            )
+    if debug_info is not None:
+        debug_info["cwe_selector"] = cwe_selection
     if _t is not None:
         _t["llm"] = time.time()
+        if debug_info is not None:
+            debug_info["timing"] = {
+                "retrieve_s": _t["retrieve"] - _t["start"],
+                "filters_s": _t["filters"] - _t["retrieve"],
+                "graph_s": _t["graph"] - _t["filters"],
+                "candidate_count": _t["candidate_count"],
+                "neighbors_s": _t["neighbors"] - _t["graph"],
+                "prompt_s": _t["prompt_built"] - _t["neighbors"],
+                "llm_s": _t["llm"] - _t["prompt_built"],
+                "total_s": _t["llm"] - _t["start"],
+            }
         _profile_print(
             f"[T] retrieve={_t['retrieve']-_t['start']:.2f}s "
             f"filters={_t['filters']-_t['retrieve']:.2f}s "

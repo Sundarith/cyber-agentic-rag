@@ -16,6 +16,7 @@ Usage:
 import csv
 import itertools
 import json
+import os
 import random
 import re
 import sys
@@ -30,7 +31,7 @@ CVE_CWE_INDEX = Path("data/processed/cve_cwe_index.json")
 DEBUG_FAILURES_PATH = Path("eval_failures_debug.jsonl")
 SAMPLE_N  = 100
 SEED      = 42
-WORKERS   = 16  # parallel requests; vLLM continuous batching scales near-linearly until KV cache saturates
+WORKERS   = int(os.environ.get("CTI_RAG_EVAL_WORKERS", "16"))  # vLLM continuous batching scales until KV cache saturates
 
 
 def extract_cve_id(url: str) -> str:
