@@ -1,0 +1,1439 @@
+[
+  {
+    "cve_id": "CVE-2023-4797",
+    "gold": "CWE-77",
+    "gold_name": "Improper Neutralization of Special Elements used in a Command ('Command Injection')",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-78",
+    "predicted_name": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "predicted_child_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-144",
+      "CWE-146",
+      "CWE-150",
+      "CWE-159",
+      "CWE-473",
+      "CWE-89"
+    ],
+    "graph_cwes": [
+      "CWE-116",
+      "CWE-621",
+      "CWE-652",
+      "CWE-79",
+      "CWE-914"
+    ],
+    "final_cwes": [
+      "CWE-79"
+    ],
+    "knn_top": "CWE-79",
+    "knn_mode": "high_confidence",
+    "knn_top_share": 1.0,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "wrong_high_confidence_knn",
+      "predicted_child_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-52435",
+    "gold": "CWE-119",
+    "gold_name": "Improper Restriction of Operations within the Bounds of a Memory Buffer",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-190",
+    "predicted_name": "Integer Overflow or Wraparound",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [],
+    "graph_cwes": [
+      "CWE-117",
+      "CWE-267",
+      "CWE-294"
+    ],
+    "final_cwes": [
+      "CWE-117",
+      "CWE-119",
+      "CWE-190",
+      "CWE-267",
+      "CWE-294",
+      "CWE-476"
+    ],
+    "knn_top": "CWE-190",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.2021429134214607,
+    "knn_gold_weight": 0.8537018299102783,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2024-0853",
+    "gold": "CWE-295",
+    "gold_name": "Improper Certificate Validation",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-299",
+    "predicted_name": "Improper Check for Certificate Revocation",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "predicted_child_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-252",
+      "CWE-297",
+      "CWE-299",
+      "CWE-352",
+      "CWE-367",
+      "CWE-370",
+      "CWE-79"
+    ],
+    "graph_cwes": [
+      "CWE-298",
+      "CWE-384",
+      "CWE-599",
+      "CWE-649",
+      "CWE-918"
+    ],
+    "final_cwes": [
+      "CWE-252",
+      "CWE-295",
+      "CWE-297",
+      "CWE-298",
+      "CWE-299",
+      "CWE-352",
+      "CWE-367",
+      "CWE-370",
+      "CWE-384",
+      "CWE-522",
+      "CWE-592",
+      "CWE-599",
+      "CWE-649",
+      "CWE-79",
+      "CWE-918"
+    ],
+    "knn_top": "CWE-295",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.6061288592932812,
+    "knn_gold_weight": 2.4817771315574646,
+    "categories": [
+      "llm_selection_error",
+      "knn_had_correct_top",
+      "predicted_child_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-6029",
+    "gold": "CWE-862",
+    "gold_name": "Missing Authorization",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-352",
+    "predicted_name": "Cross-Site Request Forgery (CSRF)",
+    "predicted_abstraction": "Compound",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-144",
+      "CWE-146",
+      "CWE-152",
+      "CWE-166",
+      "CWE-73",
+      "CWE-79",
+      "CWE-88"
+    ],
+    "graph_cwes": [
+      "CWE-352",
+      "CWE-644",
+      "CWE-80",
+      "CWE-81",
+      "CWE-83"
+    ],
+    "final_cwes": [
+      "CWE-144",
+      "CWE-146",
+      "CWE-152",
+      "CWE-166",
+      "CWE-352",
+      "CWE-639",
+      "CWE-644",
+      "CWE-73",
+      "CWE-79",
+      "CWE-80",
+      "CWE-81",
+      "CWE-83",
+      "CWE-88"
+    ],
+    "knn_top": "CWE-352",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.6006243197645482,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2022-48657",
+    "gold": "CWE-120",
+    "gold_name": "Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-190",
+    "predicted_name": "Integer Overflow or Wraparound",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval",
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-190",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-122",
+      "CWE-126",
+      "CWE-680",
+      "CWE-682",
+      "CWE-787"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-122",
+      "CWE-126",
+      "CWE-190",
+      "CWE-362",
+      "CWE-680",
+      "CWE-682",
+      "CWE-787",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "knn_top": "CWE-190",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.6019031948140015,
+    "knn_gold_weight": 0.8273335695266724,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2019-25160",
+    "gold": "CWE-125",
+    "gold_name": "Out-of-bounds Read",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-787",
+    "predicted_name": "Out-of-bounds Write",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval",
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-125",
+      "CWE-1316",
+      "CWE-787",
+      "CWE-805",
+      "CWE-843"
+    ],
+    "graph_cwes": [
+      "CWE-121",
+      "CWE-122",
+      "CWE-1257",
+      "CWE-188",
+      "CWE-762"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-122",
+      "CWE-125",
+      "CWE-1257",
+      "CWE-1316",
+      "CWE-188",
+      "CWE-416",
+      "CWE-762",
+      "CWE-787",
+      "CWE-805",
+      "CWE-843"
+    ],
+    "knn_top": "CWE-787",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.400575021738608,
+    "knn_gold_weight": 1.7073609828948975,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46928",
+    "gold": "CWE-755",
+    "gold_name": "Improper Handling of Exceptional Conditions",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-733",
+    "predicted_name": "Compiler Optimization Removal or Modification of Security-critical Code",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-1239",
+      "CWE-1257",
+      "CWE-1274",
+      "CWE-14",
+      "CWE-1419",
+      "CWE-591"
+    ],
+    "graph_cwes": [
+      "CWE-119",
+      "CWE-1260",
+      "CWE-1262",
+      "CWE-1267",
+      "CWE-1323"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-122",
+      "CWE-1239",
+      "CWE-1257",
+      "CWE-1260",
+      "CWE-1262",
+      "CWE-1267",
+      "CWE-1274",
+      "CWE-1323",
+      "CWE-14",
+      "CWE-1419",
+      "CWE-400",
+      "CWE-404",
+      "CWE-591"
+    ],
+    "knn_top": "CWE-400",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.20060342790060712,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46935",
+    "gold": "CWE-668",
+    "gold_name": "Exposure of Resource to Wrong Sphere",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-787",
+    "predicted_name": "Out-of-bounds Write",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [],
+    "graph_cwes": [],
+    "final_cwes": [
+      "CWE-120",
+      "CWE-20",
+      "CWE-416"
+    ],
+    "knn_top": "CWE-416",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.4033914613289578,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-6064",
+    "gold": "CWE-532",
+    "gold_name": "Insertion of Sensitive Information into Log File",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-534",
+    "predicted_name": "DEPRECATED: Information Exposure Through Debug Log Files",
+    "predicted_abstraction": "Variant",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [],
+    "graph_cwes": [],
+    "final_cwes": [
+      "CWE-79",
+      "CWE-862"
+    ],
+    "knn_top": "CWE-79",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.6001250674129815,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2024-26583",
+    "gold": "CWE-362",
+    "gold_name": "Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-364",
+    "predicted_name": "Signal Handler Race Condition",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "predicted_child_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval",
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-120",
+      "CWE-250",
+      "CWE-362",
+      "CWE-364",
+      "CWE-366",
+      "CWE-494",
+      "CWE-829"
+    ],
+    "graph_cwes": [
+      "CWE-1420",
+      "CWE-295",
+      "CWE-319",
+      "CWE-441",
+      "CWE-662"
+    ],
+    "final_cwes": [
+      "CWE-120",
+      "CWE-1420",
+      "CWE-250",
+      "CWE-295",
+      "CWE-319",
+      "CWE-362",
+      "CWE-364",
+      "CWE-366",
+      "CWE-400",
+      "CWE-416",
+      "CWE-441",
+      "CWE-494",
+      "CWE-662",
+      "CWE-829"
+    ],
+    "knn_top": "CWE-362",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.3995191178425307,
+    "knn_gold_weight": 1.6740074157714844,
+    "categories": [
+      "llm_selection_error",
+      "knn_had_correct_top",
+      "predicted_child_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46934",
+    "gold": "CWE-754",
+    "gold_name": "Improper Check for Unusual or Exceptional Conditions",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-781",
+    "predicted_name": "Improper Address Validation in IOCTL with METHOD_NEITHER I/O Control Code",
+    "predicted_abstraction": "Variant",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-158",
+      "CWE-642",
+      "CWE-73",
+      "CWE-781",
+      "CWE-782",
+      "CWE-79",
+      "CWE-94"
+    ],
+    "graph_cwes": [
+      "CWE-356",
+      "CWE-441",
+      "CWE-77",
+      "CWE-81",
+      "CWE-99"
+    ],
+    "final_cwes": [
+      "CWE-158",
+      "CWE-20",
+      "CWE-269",
+      "CWE-356",
+      "CWE-441",
+      "CWE-642",
+      "CWE-73",
+      "CWE-77",
+      "CWE-78",
+      "CWE-781",
+      "CWE-782",
+      "CWE-79",
+      "CWE-81",
+      "CWE-94",
+      "CWE-99"
+    ],
+    "knn_top": "CWE-20",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.3985343699311658,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46943",
+    "gold": "CWE-131",
+    "gold_name": "Incorrect Calculation of Buffer Size",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-806",
+    "predicted_name": "Buffer Access Using Size of Source Buffer",
+    "predicted_abstraction": "Variant",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-121",
+      "CWE-122",
+      "CWE-1274",
+      "CWE-762",
+      "CWE-787"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-122",
+      "CWE-1274",
+      "CWE-404",
+      "CWE-762",
+      "CWE-787",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "knn_top": "CWE-119",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.40071194389345227,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2022-48654",
+    "gold": "CWE-908",
+    "gold_name": "Use of Uninitialized Resource",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-457",
+    "predicted_name": "Use of Uninitialized Variable",
+    "predicted_abstraction": "Variant",
+    "predicted_relation_to_gold": "predicted_child_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-120",
+      "CWE-1257",
+      "CWE-280",
+      "CWE-591",
+      "CWE-763",
+      "CWE-78",
+      "CWE-805"
+    ],
+    "graph_cwes": [
+      "CWE-119",
+      "CWE-121",
+      "CWE-1311",
+      "CWE-1323",
+      "CWE-762"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-1257",
+      "CWE-1311",
+      "CWE-1323",
+      "CWE-280",
+      "CWE-404",
+      "CWE-457",
+      "CWE-591",
+      "CWE-762",
+      "CWE-763",
+      "CWE-78",
+      "CWE-805",
+      "CWE-824"
+    ],
+    "knn_top": "CWE-824",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.2018694803816954,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "predicted_child_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46923",
+    "gold": "CWE-668",
+    "gold_name": "Exposure of Resource to Wrong Sphere",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-775",
+    "predicted_name": "Missing Release of File Descriptor or Handle after Effective Lifetime",
+    "predicted_abstraction": "Variant",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-1386",
+      "CWE-280",
+      "CWE-551",
+      "CWE-648",
+      "CWE-73",
+      "CWE-773",
+      "CWE-915"
+    ],
+    "graph_cwes": [
+      "CWE-114",
+      "CWE-441",
+      "CWE-664",
+      "CWE-703",
+      "CWE-775"
+    ],
+    "final_cwes": [
+      "CWE-114",
+      "CWE-1386",
+      "CWE-280",
+      "CWE-281",
+      "CWE-282",
+      "CWE-401",
+      "CWE-441",
+      "CWE-551",
+      "CWE-648",
+      "CWE-664",
+      "CWE-703",
+      "CWE-73",
+      "CWE-773",
+      "CWE-775",
+      "CWE-915"
+    ],
+    "knn_top": "CWE-401",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.39915615382469605,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46906",
+    "gold": "CWE-668",
+    "gold_name": "Exposure of Resource to Wrong Sphere",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-131",
+    "predicted_name": "Incorrect Calculation of Buffer Size",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-131",
+      "CWE-215",
+      "CWE-787",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-116",
+      "CWE-121",
+      "CWE-122",
+      "CWE-130",
+      "CWE-79"
+    ],
+    "final_cwes": [
+      "CWE-116",
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-122",
+      "CWE-130",
+      "CWE-131",
+      "CWE-215",
+      "CWE-787",
+      "CWE-79",
+      "CWE-805",
+      "CWE-806",
+      "CWE-908"
+    ],
+    "knn_top": "CWE-120",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.3973848294195118,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46931",
+    "gold": "CWE-787",
+    "gold_name": "Out-of-bounds Write",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-119",
+    "predicted_name": "Improper Restriction of Operations within the Bounds of a Memory Buffer",
+    "predicted_abstraction": "Class",
+    "predicted_relation_to_gold": "predicted_parent_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [],
+    "graph_cwes": [
+      "CWE-117",
+      "CWE-200",
+      "CWE-267",
+      "CWE-294",
+      "CWE-522"
+    ],
+    "final_cwes": [
+      "CWE-117",
+      "CWE-119",
+      "CWE-200",
+      "CWE-267",
+      "CWE-294",
+      "CWE-362",
+      "CWE-401",
+      "CWE-522"
+    ],
+    "knn_top": "CWE-119",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.5997138619707608,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "predicted_parent_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2024-26593",
+    "gold": "CWE-125",
+    "gold_name": "Out-of-bounds Read",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-787",
+    "predicted_name": "Out-of-bounds Write",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-1223",
+      "CWE-1224",
+      "CWE-1276",
+      "CWE-1316",
+      "CWE-415",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-119",
+      "CWE-1231",
+      "CWE-1274",
+      "CWE-1312",
+      "CWE-1323"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-1223",
+      "CWE-1224",
+      "CWE-1231",
+      "CWE-1274",
+      "CWE-1276",
+      "CWE-1312",
+      "CWE-1316",
+      "CWE-1323",
+      "CWE-362",
+      "CWE-400",
+      "CWE-415",
+      "CWE-806"
+    ],
+    "knn_top": "CWE-120",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.40200142614193807,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-4969",
+    "gold": "CWE-401",
+    "gold_name": "Missing Release of Memory after Effective Lifetime",
+    "gold_abstraction": "Variant",
+    "predicted": "CWE-200",
+    "predicted_name": "Exposure of Sensitive Information to an Unauthorized Actor",
+    "predicted_abstraction": "Class",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-1257",
+      "CWE-1260",
+      "CWE-1316",
+      "CWE-1421",
+      "CWE-1423",
+      "CWE-214",
+      "CWE-591"
+    ],
+    "graph_cwes": [
+      "CWE-1239",
+      "CWE-1303",
+      "CWE-1323",
+      "CWE-1422",
+      "CWE-497"
+    ],
+    "final_cwes": [
+      "CWE-1239",
+      "CWE-1251",
+      "CWE-1257",
+      "CWE-1260",
+      "CWE-1303",
+      "CWE-1316",
+      "CWE-1323",
+      "CWE-1421",
+      "CWE-1422",
+      "CWE-1423",
+      "CWE-200",
+      "CWE-214",
+      "CWE-416",
+      "CWE-497",
+      "CWE-591"
+    ],
+    "knn_top": "CWE-416",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.39679402335799147,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-52452",
+    "gold": "CWE-665",
+    "gold_name": "Improper Initialization",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-125",
+    "predicted_name": "Out-of-bounds Read",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-119",
+      "CWE-121",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-120",
+      "CWE-787",
+      "CWE-822",
+      "CWE-823",
+      "CWE-824"
+    ],
+    "final_cwes": [
+      "CWE-125"
+    ],
+    "knn_top": "CWE-125",
+    "knn_mode": "high_confidence",
+    "knn_top_share": 0.799653039550121,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "wrong_high_confidence_knn",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-6529",
+    "gold": "CWE-79",
+    "gold_name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-352",
+    "predicted_name": "Cross-Site Request Forgery (CSRF)",
+    "predicted_abstraction": "Compound",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-144",
+      "CWE-148",
+      "CWE-352",
+      "CWE-644",
+      "CWE-79",
+      "CWE-807"
+    ],
+    "graph_cwes": [
+      "CWE-692",
+      "CWE-80",
+      "CWE-81",
+      "CWE-918",
+      "CWE-942"
+    ],
+    "final_cwes": [
+      "CWE-352"
+    ],
+    "knn_top": "CWE-352",
+    "knn_mode": "high_confidence",
+    "knn_top_share": 0.8004282632740494,
+    "knn_gold_weight": 0.8828017711639404,
+    "categories": [
+      "gold_missing_from_final_context",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "wrong_high_confidence_knn",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-7204",
+    "gold": "CWE-668",
+    "gold_name": "Exposure of Resource to Wrong Sphere",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-200",
+    "predicted_name": "Exposure of Sensitive Information to an Unauthorized Actor",
+    "predicted_abstraction": "Class",
+    "predicted_relation_to_gold": "predicted_child_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-204",
+      "CWE-273",
+      "CWE-378",
+      "CWE-498",
+      "CWE-530",
+      "CWE-73",
+      "CWE-829"
+    ],
+    "graph_cwes": [
+      "CWE-120",
+      "CWE-40",
+      "CWE-527",
+      "CWE-528",
+      "CWE-79"
+    ],
+    "final_cwes": [
+      "CWE-120",
+      "CWE-200",
+      "CWE-204",
+      "CWE-273",
+      "CWE-352",
+      "CWE-378",
+      "CWE-40",
+      "CWE-498",
+      "CWE-527",
+      "CWE-528",
+      "CWE-530",
+      "CWE-73",
+      "CWE-79",
+      "CWE-829"
+    ],
+    "knn_top": "CWE-79",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.3978968884279469,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "predicted_child_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-5957",
+    "gold": "CWE-434",
+    "gold_name": "Unrestricted Upload of File with Dangerous Type",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-94",
+    "predicted_name": "Improper Control of Generation of Code ('Code Injection')",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval",
+      "final_context"
+    ],
+    "initial_cwes": [
+      "CWE-297",
+      "CWE-434",
+      "CWE-616",
+      "CWE-644",
+      "CWE-73",
+      "CWE-79"
+    ],
+    "graph_cwes": [
+      "CWE-1289",
+      "CWE-34",
+      "CWE-40",
+      "CWE-646",
+      "CWE-81"
+    ],
+    "final_cwes": [
+      "CWE-1289",
+      "CWE-200",
+      "CWE-297",
+      "CWE-34",
+      "CWE-352",
+      "CWE-40",
+      "CWE-434",
+      "CWE-616",
+      "CWE-644",
+      "CWE-646",
+      "CWE-73",
+      "CWE-79",
+      "CWE-81"
+    ],
+    "knn_top": "CWE-200",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.4003247183689851,
+    "knn_gold_weight": null,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-52434",
+    "gold": "CWE-119",
+    "gold_name": "Improper Restriction of Operations within the Bounds of a Memory Buffer",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-787",
+    "predicted_name": "Out-of-bounds Write",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "predicted_child_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval",
+      "final_context"
+    ],
+    "initial_cwes": [
+      "CWE-119",
+      "CWE-121",
+      "CWE-1316",
+      "CWE-787",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-125",
+      "CWE-1323",
+      "CWE-762",
+      "CWE-822",
+      "CWE-913"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-121",
+      "CWE-125",
+      "CWE-1316",
+      "CWE-1323",
+      "CWE-362",
+      "CWE-401",
+      "CWE-416",
+      "CWE-762",
+      "CWE-787",
+      "CWE-805",
+      "CWE-806",
+      "CWE-822",
+      "CWE-913"
+    ],
+    "knn_top": "CWE-362",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.6019597016621033,
+    "knn_gold_weight": null,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "predicted_child_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-46805",
+    "gold": "CWE-287",
+    "gold_name": "Improper Authentication",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-288",
+    "predicted_name": "Authentication Bypass Using an Alternate Path or Channel",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-285",
+      "CWE-306",
+      "CWE-425",
+      "CWE-642",
+      "CWE-862",
+      "CWE-863"
+    ],
+    "graph_cwes": [
+      "CWE-284",
+      "CWE-288",
+      "CWE-305",
+      "CWE-441",
+      "CWE-942"
+    ],
+    "final_cwes": [
+      "CWE-288"
+    ],
+    "knn_top": "CWE-288",
+    "knn_mode": "high_confidence",
+    "knn_top_share": 0.8011782120091757,
+    "knn_gold_weight": 0.8558288216590881,
+    "categories": [
+      "gold_missing_from_final_context",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "wrong_high_confidence_knn",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2024-0844",
+    "gold": "CWE-22",
+    "gold_name": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-98",
+    "predicted_name": "Improper Control of Filename for Include/Require Statement in PHP Program ('PHP Remote File Inclusion')",
+    "predicted_abstraction": "Variant",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [],
+    "initial_cwes": [
+      "CWE-378",
+      "CWE-434",
+      "CWE-616",
+      "CWE-646",
+      "CWE-829",
+      "CWE-98"
+    ],
+    "graph_cwes": [
+      "CWE-1336",
+      "CWE-25",
+      "CWE-352",
+      "CWE-81",
+      "CWE-830"
+    ],
+    "final_cwes": [
+      "CWE-1336",
+      "CWE-25",
+      "CWE-352",
+      "CWE-378",
+      "CWE-434",
+      "CWE-616",
+      "CWE-646",
+      "CWE-78",
+      "CWE-81",
+      "CWE-829",
+      "CWE-830",
+      "CWE-98"
+    ],
+    "knn_top": "CWE-98",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.40155358664289487,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "retrieval_miss",
+      "knn_top_wrong",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2022-1617",
+    "gold": "CWE-352",
+    "gold_name": "Cross-Site Request Forgery (CSRF)",
+    "gold_abstraction": "Compound",
+    "predicted": "CWE-79",
+    "predicted_name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "unrelated_or_distant",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "initial_retrieval"
+    ],
+    "initial_cwes": [
+      "CWE-144",
+      "CWE-150",
+      "CWE-352",
+      "CWE-79",
+      "CWE-88"
+    ],
+    "graph_cwes": [
+      "CWE-80",
+      "CWE-81",
+      "CWE-83",
+      "CWE-85",
+      "CWE-87"
+    ],
+    "final_cwes": [
+      "CWE-79"
+    ],
+    "knn_top": "",
+    "knn_mode": "",
+    "knn_top_share": null,
+    "knn_gold_weight": null,
+    "categories": [
+      "gold_missing_from_final_context",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46949",
+    "gold": "CWE-476",
+    "gold_name": "NULL Pointer Dereference",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-754",
+    "predicted_name": "Improper Check for Unusual or Exceptional Conditions",
+    "predicted_abstraction": "Class",
+    "predicted_relation_to_gold": "predicted_parent_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-150",
+      "CWE-158",
+      "CWE-166",
+      "CWE-252",
+      "CWE-591",
+      "CWE-73"
+    ],
+    "graph_cwes": [
+      "CWE-119",
+      "CWE-25",
+      "CWE-74",
+      "CWE-805",
+      "CWE-918"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-150",
+      "CWE-158",
+      "CWE-166",
+      "CWE-200",
+      "CWE-25",
+      "CWE-252",
+      "CWE-416",
+      "CWE-476",
+      "CWE-591",
+      "CWE-73",
+      "CWE-74",
+      "CWE-805",
+      "CWE-918"
+    ],
+    "knn_top": "CWE-416",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.3988361726278797,
+    "knn_gold_weight": 0.8012540936470032,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "predicted_parent_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2021-46948",
+    "gold": "CWE-476",
+    "gold_name": "NULL Pointer Dereference",
+    "gold_abstraction": "Base",
+    "predicted": "CWE-754",
+    "predicted_name": "Improper Check for Unusual or Exceptional Conditions",
+    "predicted_abstraction": "Class",
+    "predicted_relation_to_gold": "predicted_parent_of_gold",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "final_context",
+      "knn_votes"
+    ],
+    "initial_cwes": [
+      "CWE-150",
+      "CWE-158",
+      "CWE-166",
+      "CWE-252",
+      "CWE-591",
+      "CWE-73"
+    ],
+    "graph_cwes": [
+      "CWE-119",
+      "CWE-152",
+      "CWE-74",
+      "CWE-914",
+      "CWE-94"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-150",
+      "CWE-152",
+      "CWE-158",
+      "CWE-166",
+      "CWE-200",
+      "CWE-252",
+      "CWE-416",
+      "CWE-476",
+      "CWE-591",
+      "CWE-73",
+      "CWE-74",
+      "CWE-914",
+      "CWE-94"
+    ],
+    "knn_top": "CWE-416",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.5999612697870149,
+    "knn_gold_weight": 0.7938339710235596,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "knn_had_gold_but_ranked_other",
+      "predicted_parent_of_gold",
+      "nvd_unmapped_failure"
+    ]
+  },
+  {
+    "cve_id": "CVE-2024-26885",
+    "gold": "CWE-119",
+    "gold_name": "Improper Restriction of Operations within the Bounds of a Memory Buffer",
+    "gold_abstraction": "Class",
+    "predicted": "CWE-190",
+    "predicted_name": "Integer Overflow or Wraparound",
+    "predicted_abstraction": "Base",
+    "predicted_relation_to_gold": "sibling_same_parent",
+    "nvd_mapped": false,
+    "evidence_locations": [
+      "graph_neighbors",
+      "final_context"
+    ],
+    "initial_cwes": [
+      "CWE-120",
+      "CWE-190",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "graph_cwes": [
+      "CWE-119",
+      "CWE-121",
+      "CWE-122",
+      "CWE-680",
+      "CWE-787"
+    ],
+    "final_cwes": [
+      "CWE-119",
+      "CWE-120",
+      "CWE-121",
+      "CWE-122",
+      "CWE-190",
+      "CWE-680",
+      "CWE-787",
+      "CWE-805",
+      "CWE-806"
+    ],
+    "knn_top": "CWE-190",
+    "knn_mode": "soft_hint",
+    "knn_top_share": 0.40587790925444,
+    "knn_gold_weight": null,
+    "categories": [
+      "llm_selection_error",
+      "knn_top_wrong",
+      "sibling_same_parent",
+      "nvd_unmapped_failure"
+    ]
+  }
+]
