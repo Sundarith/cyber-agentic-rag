@@ -12,20 +12,22 @@ The system uses hybrid retrieval, explicit MITRE/NVD relationship bridges, graph
 
 ## Result
 
-CTI-RAG scores **84.3% (843/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping.
+CTI-RAG scores **84.9% (849/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping.
 
 | System | CTI-RCM score | Setup |
 | --- | ---: | --- |
-| CTI-RAG | **84.3%** | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data |
+| CTI-RAG | **84.9%** | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data + cross-encoder reorder + HyDE candidate expansion |
 | GPT-4 in CTI-Bench | 72.0% | Frontier model, no retrieval, memory-only answering |
 
 Breakdown:
 
 | Subset | Score |
 | --- | ---: |
-| All 1000 queries | **84.3%** (843/1000) |
-| NVD-mapped CVEs | **86.6%** (782/903) |
-| NVD-unmapped CVEs | **62.9%** (61/97) |
+| All 1000 queries | **84.9%** (849/1000) |
+| NVD-mapped CVEs | **86.3%** (779/903) |
+| NVD-unmapped CVEs | **72.2%** (70/97) |
+
+The hard NVD-unmapped subset (no structured CWE in NVD, the system has to reason from the CVE description) lifted from the previous 62.9% baseline by adding two retrieval-side stages: cross-encoder re-ranking with `BAAI/bge-reranker-base` and HyDE-style candidate expansion with a cross-encoder noise filter.
 
 This is not an apples-to-apples model comparison. CTI-RAG uses retrieval over public security data, while the GPT-4 number from CTI-Bench is a no-retrieval baseline. The result is still operationally meaningful: security teams usually have NVD and MITRE data available, and the benchmark tests whether a system can use that evidence reliably.
 
@@ -66,6 +68,18 @@ Explicit bridge injection
   v
 Conflict stripping
   - Remove competing CWE chunks when an authoritative bridge fires
+  |
+  v
+HyDE candidate expansion (CTI_RAG_CWE_HYDE=1)
+  - LLM drafts a CWE-style hypothetical from the CVE description
+  - Retrieve against the hypothetical, inject novel CWE chunks
+  - Cross-encoder filter (CTI_RAG_CWE_HYDE_CE_FILTER=1) blocks misleading injections
+  |
+  v
+Cross-encoder reorder (CTI_RAG_CWE_CROSSENCODER=1)
+  - BAAI/bge-reranker-base rescores (question, CWE chunk) pairs jointly
+  - Reorder CWE chunks by relevance before the final prompt
+  - Skipped on authoritative bridge / high-confidence k-NN paths
   |
   v
 Qwen2.5-7B-Instruct via vLLM
@@ -190,6 +204,19 @@ Use the same CTI-Bench prompt field used for the published GPT-4 comparison:
 ```bash
 conda run -n cyber-ft python3 -u eval_rcm.py 1000
 ```
+
+For the locked 84.9% result, enable the four retrieval-side env flags:
+
+```bash
+CTI_RAG_CWE_PHRASE_SELECTOR=1 \
+CTI_RAG_CWE_CROSSENCODER=1 \
+CTI_RAG_CWE_HYDE=1 \
+CTI_RAG_CWE_HYDE_CE_FILTER=1 \
+CUDA_VISIBLE_DEVICES=1 CTI_RAG_EVAL_WORKERS=3 \
+conda run -n cyber-ft python3 -u eval_rcm.py 1000
+```
+
+All four flags affect retrieval only — the final classification call still uses the unchanged CTI-Bench `row["Prompt"]` at default temperature with a single sample, so the protocol is apples-to-apples with the CTI-Bench paper's other reported models. Without any of these flags the baseline scores 84.3% (843/1000).
 
 Useful subset runs:
 
