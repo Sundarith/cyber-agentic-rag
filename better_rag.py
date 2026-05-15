@@ -40,6 +40,12 @@ CWE_HIERARCHY_EXPANSION_ENABLED = os.environ.get("CTI_RAG_CWE_HIERARCHY_EXPANSIO
 CWE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_SELECTOR", "0") == "1"
 CWE_PHRASE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_PHRASE_SELECTOR", "0") == "1"
 CWE_CROSSENCODER_ENABLED = os.environ.get("CTI_RAG_CWE_CROSSENCODER", "0") == "1"
+CWE_HYDE_ENABLED = os.environ.get("CTI_RAG_CWE_HYDE", "0") == "1"
+CWE_HYDE_RETRIEVE_K = int(os.environ.get("CTI_RAG_CWE_HYDE_RETRIEVE_K", "15"))
+CWE_HYDE_INJECT_MAX = int(os.environ.get("CTI_RAG_CWE_HYDE_INJECT_MAX", "5"))
+CWE_HYDE_MIN_QUERY_TOKENS = int(os.environ.get("CTI_RAG_CWE_HYDE_MIN_QUERY_TOKENS", "15"))
+CWE_HYDE_CE_FILTER = os.environ.get("CTI_RAG_CWE_HYDE_CE_FILTER", "0") == "1"
+CWE_HYDE_CE_FILTER_THRESHOLD = float(os.environ.get("CTI_RAG_CWE_HYDE_CE_FILTER_THRESHOLD", "0.3"))
 CWE_RESCUE_ENABLED = os.environ.get("CTI_RAG_CWE_RESCUE", "0") == "1"
 CWE_RESCUE_POOL_K = int(os.environ.get("CTI_RAG_CWE_RESCUE_POOL_K", "50"))
 CWE_RESCUE_MAX_ADD = int(os.environ.get("CTI_RAG_CWE_RESCUE_MAX_ADD", "1"))
@@ -621,6 +627,28 @@ def _llm(prompt: str) -> str:
         return "Error: Could not connect to vLLM."
 
 
+def _hyde_hypothesis(query: str) -> str:
+    """Generate a short CWE-style weakness description for retrieval purposes.
+
+    The hypothetical text is used to embed and retrieve additional CWE
+    candidates that the original CVE prose may not lexically/semantically
+    surface (e.g. CWE-668 "Exposure of Resource to Wrong Sphere" rarely shares
+    vocabulary with kernel CVE prose). The hypothesis is NOT shown to the
+    classification LLM call — only its embedding feeds retrieval.
+    """
+    prompt = (
+        "Given the CVE description below, write a 2-sentence description of the underlying "
+        "software weakness in the abstract style of a MITRE CWE (Common Weakness Enumeration) entry. "
+        "Focus on the general weakness category (for example 'improper validation of input', "
+        "'exposure of a resource to an unintended sphere', 'missing authorization for a sensitive operation', "
+        "'incorrect calculation of buffer size'). Avoid mentioning the specific product, version, or exploit. "
+        "Do not include CWE IDs.\n\n"
+        f"CVE Description: {query}\n\n"
+        "Weakness description:"
+    )
+    return _llm(prompt)
+
+
 ENTITY_REVERSE_RE = re.compile(r'\b(what|which|list|show).{0,50}\b(techniques?|attacks?|tactics?|malwares?|software|tools?|groups?|actors?|do|does|use[sd]?|cause[sd]?)\b', re.IGNORECASE)
 WHAT_IS_RE        = re.compile(r'\bwhat\s+is\b', re.IGNORECASE)
 TARGET_MALWARE_RE = re.compile(r'\b(malwares?|software)\b', re.IGNORECASE)
@@ -960,6 +988,62 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             }
             for c, score in retrieved
         ]
+
+    # HyDE: when the query looks like a CVE description (long enough that an
+    # LLM-drafted hypothetical is meaningful), generate a CWE-style weakness
+    # description, retrieve against it, and inject the top novel CWE candidates.
+    # The hypothesis is used for retrieval only; the final classification call
+    # still sees the unchanged user prompt.
+    if CWE_HYDE_ENABLED and len(_tokenize(question)) > CWE_HYDE_MIN_QUERY_TOKENS:
+        hyde_text = _hyde_hypothesis(question)
+        if hyde_text and not hyde_text.startswith("Error:"):
+            hyde_retrieved = retrieve(hyde_text, k=CWE_HYDE_RETRIEVE_K)
+            existing_ids = {(c.get("identifier") or "").upper() for c in retrieved_chunks}
+            # First collect all novel CWE candidates from HyDE retrieval
+            hyde_candidates: list[dict] = []
+            for c, _score in hyde_retrieved:
+                cid = (c.get("identifier") or "").upper()
+                if c.get("source") == "CWE" and cid and cid not in existing_ids:
+                    hyde_candidates.append(c)
+            # Optional cross-encoder filter: score each HyDE candidate against
+            # the ORIGINAL question and drop anything below threshold. Goal is
+            # to keep HyDE's wins while removing the misleading injections that
+            # caused the regressions in the plain-HyDE eval.
+            hyde_filter_debug: list[dict] = []
+            if CWE_HYDE_CE_FILTER and hyde_candidates:
+                from cwe_reranker import score_cwe_chunks
+                hyde_scored = score_cwe_chunks(question, hyde_candidates)
+                hyde_filter_debug = [
+                    {"identifier": c.get("identifier"),
+                     "ce_score": float(s),
+                     "kept": s >= CWE_HYDE_CE_FILTER_THRESHOLD}
+                    for c, s in hyde_scored
+                ]
+                hyde_candidates = [c for c, s in hyde_scored
+                                   if s >= CWE_HYDE_CE_FILTER_THRESHOLD]
+            hyde_added: list[dict] = []
+            for c in hyde_candidates:
+                if len(hyde_added) >= CWE_HYDE_INJECT_MAX:
+                    break
+                cid = (c.get("identifier") or "").upper()
+                if cid not in existing_ids:
+                    retrieved_chunks.append(c)
+                    existing_ids.add(cid)
+                    hyde_added.append(c)
+            if debug_info is not None:
+                debug_info["hyde"] = {
+                    "hypothesis": hyde_text,
+                    "added_cwes": [c.get("identifier") for c in hyde_added],
+                    "retrieve_k": CWE_HYDE_RETRIEVE_K,
+                    "inject_max": CWE_HYDE_INJECT_MAX,
+                    "ce_filter": CWE_HYDE_CE_FILTER,
+                    "ce_filter_threshold": CWE_HYDE_CE_FILTER_THRESHOLD,
+                    "ce_filter_scores": hyde_filter_debug,
+                }
+            if hyde_added and not eval_mode:
+                added_ids = [c.get("identifier") for c in hyde_added]
+                tag = "HyDE+CEfilter" if CWE_HYDE_CE_FILTER else "HyDE"
+                print(f"[{tag} injected {len(added_ids)} CWE candidates: {added_ids}]\n")
 
     if _t is not None: _t["retrieve"] = time.time()
 
