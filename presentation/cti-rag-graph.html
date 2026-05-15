@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CTI-RAG Graph Walkthrough</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --ink: #18202f;
+      --muted: #5c667a;
+      --line: #c9d1dd;
+      --panel: #ffffff;
+      --attack: #2d6cdf;
+      --capec: #1f8f6f;
+      --cwe: #b45f06;
+      --mit: #7c4dff;
+      --cve: #b02a37;
+      --bridge: #263238;
+      --soft: #eef2f7;
+      --shadow: 0 18px 50px rgba(24, 32, 47, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 22px 32px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      font-weight: 760;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 9px 12px;
+      min-height: 38px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    main {
+      padding: 24px 32px 32px;
+    }
+
+    .stage {
+      max-width: 1280px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .slide {
+      display: none;
+      min-height: 720px;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .slide.active {
+      display: grid;
+    }
+
+    .slide-title {
+      padding: 26px 30px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .slide-title h2 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.12;
+      font-weight: 780;
+    }
+
+    .slide-title p {
+      max-width: 580px;
+      margin: 4px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    .viz {
+      position: relative;
+      padding: 10px 28px 0;
+      min-height: 520px;
+    }
+
+    svg {
+      width: 100%;
+      height: 520px;
+      display: block;
+    }
+
+    .footer {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      padding: 0 30px 28px;
+    }
+
+    .note {
+      border-top: 3px solid var(--line);
+      padding-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .note strong {
+      color: var(--ink);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .node rect,
+    .metric-box {
+      fill: #fff;
+      stroke: var(--line);
+      stroke-width: 1.5;
+      rx: 8;
+    }
+
+    .node text {
+      fill: var(--ink);
+      font-size: 13px;
+      font-weight: 680;
+    }
+
+    .node .kind {
+      fill: var(--muted);
+      font-size: 11px;
+      font-weight: 620;
+      text-transform: uppercase;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--bridge);
+      stroke-width: 2.2;
+      marker-end: url(#arrow);
+    }
+
+    .edge.soft {
+      stroke: #8b95a7;
+      stroke-dasharray: 7 6;
+    }
+
+    .edge-label {
+      fill: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .legend text,
+    .small {
+      fill: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .attack rect {
+      stroke: var(--attack);
+    }
+
+    .capec rect {
+      stroke: var(--capec);
+    }
+
+    .cwe rect {
+      stroke: var(--cwe);
+    }
+
+    .mit rect {
+      stroke: var(--mit);
+    }
+
+    .cve rect {
+      stroke: var(--cve);
+    }
+
+    .group rect {
+      stroke: #42526e;
+    }
+
+    .malware rect {
+      stroke: #8a3ffc;
+    }
+
+    .metric {
+      font-size: 42px;
+      font-weight: 820;
+      fill: var(--ink);
+    }
+
+    .metric-label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: var(--muted);
+    }
+
+    .source-board {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      align-items: stretch;
+      min-height: 500px;
+    }
+
+    .source-column {
+      display: grid;
+      gap: 12px;
+    }
+
+    .source-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px 18px;
+      min-height: 104px;
+    }
+
+    .source-card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.15;
+    }
+
+    .source-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .source-card code {
+      font-size: 12px;
+      color: var(--ink);
+      background: var(--soft);
+      border-radius: 5px;
+      padding: 2px 5px;
+    }
+
+    .source-card.attack {
+      border-left: 5px solid var(--attack);
+    }
+
+    .source-card.capec {
+      border-left: 5px solid var(--capec);
+    }
+
+    .source-card.cwe {
+      border-left: 5px solid var(--cwe);
+    }
+
+    .source-card.cve {
+      border-left: 5px solid var(--cve);
+    }
+
+    .source-card.eval {
+      border-left: 5px solid #8b95a7;
+    }
+
+    .latency-panel {
+      border-top: 1px solid var(--line);
+      margin-top: 24px;
+      padding: 24px 16px 0;
+    }
+
+    .latency-panel h3 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    .latency-panel p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .latency-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .latency-stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .latency-stat strong {
+      display: block;
+      font-size: 20px;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .latency-stat span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .latency-bars {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 430px;
+    }
+
+    .latency-bars svg {
+      width: 100%;
+      height: 430px;
+      display: block;
+      background: #fff;
+    }
+
+    .latency-legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .latency-legend i {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      margin-right: 6px;
+      vertical-align: -2px;
+    }
+
+    .comparison-line {
+      stroke-width: 18;
+      stroke-linecap: round;
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .slide-title {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      main {
+        padding: 16px;
+      }
+
+      .slide {
+        min-height: auto;
+      }
+
+      .footer {
+        grid-template-columns: 1fr;
+      }
+
+      .source-board {
+        grid-template-columns: 1fr;
+      }
+
+      .latency-summary {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .latency-bars,
+      .latency-bars svg {
+        min-height: 480px;
+        height: 480px;
+      }
+
+      svg {
+        height: 640px;
+      }
+    }
+
+    @media print {
+      header {
+        display: none;
+      }
+
+      main {
+        padding: 0;
+      }
+
+      .stage {
+        border: 0;
+        box-shadow: none;
+      }
+
+      .slide {
+        display: grid;
+        page-break-after: always;
+      }
+    }
+
+    body.export-mode {
+      background: #fff;
+    }
+
+    body.export-mode header {
+      display: none;
+    }
+
+    body.export-mode main {
+      padding: 0;
+    }
+
+    body.export-mode .stage {
+      max-width: none;
+      margin: 0;
+      border-radius: 8px;
+      box-shadow: none;
+    }
+
+    body.export-mode .slide {
+      min-height: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>CTI-RAG Graph Walkthrough</h1>
+        <div class="subtitle">How the system crosses ATT&CK, CAPEC, CWE, CVE, and mitigations without relying on model memory.</div>
+      </div>
+      <nav class="tabs" aria-label="Presentation views">
+        <button class="active" data-slide="pipeline">Pipeline</button>
+        <button data-slide="data-sources">Data Sources</button>
+        <button data-slide="sandworm">Sandworm Chain</button>
+        <button data-slide="lazarus">Lazarus Chain</button>
+        <button data-slide="vertical-compare">Model Scores</button>
+        <button data-slide="mapped-compare">Mapped vs Unmapped</button>
+        <button data-slide="improvements">Techniques</button>
+        <button data-slide="performance">Performance</button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="stage">
+        <article class="slide active" id="pipeline">
+          <div class="slide-title">
+            <div>
+              <h2>Retrieval builds the path before the LLM answers</h2>
+              <p>Hybrid search finds candidate evidence, entity and bridge logic adds the missing cross-domain hops, then the model reads a grounded context.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg viewBox="0 0 1160 520" role="img" aria-label="CTI-RAG retrieval pipeline graph">
+              <defs>
+                <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto">
+                  <path d="M 2 2 L 10 6 L 2 10 z" fill="#263238"></path>
+                </marker>
+              </defs>
+
+              <path class="edge" d="M160 120 C220 120 232 120 292 120"></path>
+              <path class="edge" d="M448 120 C500 120 512 120 564 120"></path>
+              <path class="edge" d="M720 120 C772 120 784 120 836 120"></path>
+              <path class="edge" d="M584 216 C520 266 454 296 380 312"></path>
+              <path class="edge" d="M632 216 C650 266 704 306 792 328"></path>
+              <path class="edge" d="M896 216 C896 266 896 288 896 338"></path>
+              <path class="edge" d="M948 120 C994 120 1006 120 1052 120"></path>
+
+              <g class="node" transform="translate(32 84)">
+                <rect width="128" height="72"></rect>
+                <text x="18" y="30">User query</text>
+                <text class="kind" x="18" y="52">analyst intent</text>
+              </g>
+
+              <g class="node attack" transform="translate(292 74)">
+                <rect width="156" height="92"></rect>
+                <text x="18" y="30">Hybrid retrieval</text>
+                <text class="kind" x="18" y="52">BM25 + embeddings</text>
+                <text class="kind" x="18" y="70">336k chunks</text>
+              </g>
+
+              <g class="node group" transform="translate(564 74)">
+                <rect width="156" height="92"></rect>
+                <text x="18" y="30">Entity bridge</text>
+                <text class="kind" x="18" y="52">groups, malware</text>
+                <text class="kind" x="18" y="70">tools, campaigns</text>
+              </g>
+
+              <g class="node capec" transform="translate(836 74)">
+                <rect width="156" height="92"></rect>
+                <text x="18" y="30">Graph expansion</text>
+                <text class="kind" x="18" y="52">1-hop / 2-hop</text>
+                <text class="kind" x="18" y="70">Deep Search</text>
+              </g>
+
+              <g class="node" transform="translate(1052 84)">
+                <rect width="88" height="72"></rect>
+                <text x="16" y="30">LLM</text>
+                <text class="kind" x="16" y="52">Qwen 7B</text>
+              </g>
+
+              <g class="node attack" transform="translate(214 300)">
+                <rect width="190" height="86"></rect>
+                <text x="18" y="29">ATT&CK</text>
+                <text class="kind" x="18" y="52">groups, software</text>
+                <text class="kind" x="18" y="68">techniques, mitigations</text>
+              </g>
+
+              <g class="node capec" transform="translate(514 300)">
+                <rect width="190" height="86"></rect>
+                <text x="18" y="29">CAPEC bridge</text>
+                <text class="kind" x="18" y="52">Technique -> CAPEC</text>
+                <text class="kind" x="18" y="68">CAPEC -> CWE</text>
+              </g>
+
+              <g class="node cve" transform="translate(774 300)">
+                <rect width="244" height="86"></rect>
+                <text x="18" y="29">NVD CVE bridge</text>
+                <text class="kind" x="18" y="52">description match -> cwe_ids</text>
+                <text class="kind" x="18" y="68">unmapped -> k-NN CWE vote</text>
+              </g>
+
+              <text class="edge-label" x="218" y="107">retrieve</text>
+              <text class="edge-label" x="486" y="107">boost</text>
+              <text class="edge-label" x="760" y="107">expand</text>
+              <text class="edge-label" x="1000" y="107">answer</text>
+            </svg>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>Why graph logic matters</strong>Semantic top-k alone can stop at the first domain. The graph and bridges force the chain across datasets.</div>
+            <div class="note"><strong>Why bridge injection matters</strong>CAPEC and CWE IDs share numbers. Explicit mappings beat false-positive semantic matches.</div>
+            <div class="note"><strong>Why the LLM still helps</strong>Once evidence is assembled, the model explains and formats the answer instead of inventing the path.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="sandworm">
+          <div class="slide-title">
+            <div>
+              <h2>Validated chain: Sandworm to mitigation</h2>
+              <p>The system starts from a named group, follows observed malware and technique evidence, then uses bridge mappings to reach weakness and mitigation context.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg viewBox="0 0 1160 520" role="img" aria-label="Sandworm Prestige T1112 CAPEC CWE mitigation graph">
+              <defs>
+                <marker id="arrow2" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto">
+                  <path d="M 2 2 L 10 6 L 2 10 z" fill="#263238"></path>
+                </marker>
+              </defs>
+
+              <path class="edge" marker-end="url(#arrow2)" d="M190 165 C250 165 260 165 320 165"></path>
+              <path class="edge" marker-end="url(#arrow2)" d="M460 165 C520 165 530 165 590 165"></path>
+              <path class="edge" marker-end="url(#arrow2)" d="M730 165 C790 165 800 165 860 165"></path>
+              <path class="edge" marker-end="url(#arrow2)" d="M1000 165 C1036 165 1044 165 1080 165"></path>
+              <path class="edge soft" marker-end="url(#arrow2)" d="M670 224 C670 282 646 324 604 356"></path>
+
+              <g class="node group" transform="translate(34 112)">
+                <rect width="156" height="106"></rect>
+                <text x="18" y="30">Sandworm Team</text>
+                <text class="kind" x="18" y="54">Group</text>
+                <text class="kind" x="18" y="76">entity bridge</text>
+              </g>
+
+              <g class="node malware" transform="translate(320 112)">
+                <rect width="140" height="106"></rect>
+                <text x="18" y="30">Prestige</text>
+                <text class="kind" x="18" y="54">Malware S1058</text>
+                <text class="kind" x="18" y="76">observed use</text>
+              </g>
+
+              <g class="node attack" transform="translate(590 112)">
+                <rect width="140" height="106"></rect>
+                <text x="18" y="30">T1112</text>
+                <text x="18" y="50">Modify Registry</text>
+                <text class="kind" x="18" y="76">ATT&CK technique</text>
+              </g>
+
+              <g class="node capec" transform="translate(860 112)">
+                <rect width="140" height="106"></rect>
+                <text x="18" y="30">CAPEC-203</text>
+                <text x="18" y="50">Manipulate</text>
+                <text x="18" y="68">Registry Info</text>
+                <text class="kind" x="18" y="90">bridge fact</text>
+              </g>
+
+              <g class="node cwe" transform="translate(1080 112)">
+                <rect width="74" height="106"></rect>
+                <text x="12" y="30">CWE-15</text>
+                <text class="kind" x="12" y="54">root</text>
+                <text class="kind" x="12" y="70">cause</text>
+              </g>
+
+              <g class="node mit" transform="translate(500 352)">
+                <rect width="198" height="90"></rect>
+                <text x="18" y="30">M1024</text>
+                <text x="18" y="50">Restrict Registry</text>
+                <text x="18" y="68">Permissions</text>
+              </g>
+
+              <text class="edge-label" x="236" y="151">uses</text>
+              <text class="edge-label" x="500" y="151">technique</text>
+              <text class="edge-label" x="774" y="151">Tech -> CAPEC</text>
+              <text class="edge-label" x="1016" y="151">CAPEC -> CWE</text>
+              <text class="edge-label" x="690" y="306">mitigation neighbor</text>
+            </svg>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>Analyst question</strong>What root cause and mitigation sit behind Sandworm/Prestige registry modification?</div>
+            <div class="note"><strong>Critical retrieval step</strong>Entity detection boosts Prestige and T1112 so Deep Search starts from the right ATT&CK node.</div>
+            <div class="note"><strong>Anti-hallucination step</strong>CAPEC-203 maps to CWE-15, not CWE-203. The bridge prevents the numeric false positive.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="lazarus">
+          <div class="slide-title">
+            <div>
+              <h2>Validated chain: Lazarus phishing to UI weakness</h2>
+              <p>This path shows the same graph machinery on a different behavior: malware attribution, phishing technique, CAPEC pattern, UI weakness, and mitigations.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg viewBox="0 0 1160 520" role="img" aria-label="Lazarus BLINDINGCAN T1566 CAPEC CWE mitigation graph">
+              <defs>
+                <marker id="arrow3" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto">
+                  <path d="M 2 2 L 10 6 L 2 10 z" fill="#263238"></path>
+                </marker>
+              </defs>
+
+              <path class="edge" marker-end="url(#arrow3)" d="M190 160 C250 160 260 160 320 160"></path>
+              <path class="edge" marker-end="url(#arrow3)" d="M470 160 C520 160 540 160 590 160"></path>
+              <path class="edge" marker-end="url(#arrow3)" d="M730 160 C790 160 800 160 860 160"></path>
+              <path class="edge" marker-end="url(#arrow3)" d="M1000 160 C1034 160 1046 160 1080 160"></path>
+              <path class="edge soft" marker-end="url(#arrow3)" d="M1118 220 C1118 294 1038 346 902 376"></path>
+              <path class="edge soft" marker-end="url(#arrow3)" d="M1118 220 C1118 310 976 414 754 420"></path>
+
+              <g class="node group" transform="translate(34 110)">
+                <rect width="156" height="100"></rect>
+                <text x="18" y="30">Lazarus Group</text>
+                <text class="kind" x="18" y="54">Group</text>
+                <text class="kind" x="18" y="74">entity bridge</text>
+              </g>
+
+              <g class="node malware" transform="translate(320 110)">
+                <rect width="150" height="100"></rect>
+                <text x="18" y="30">BLINDINGCAN</text>
+                <text class="kind" x="18" y="54">Malware</text>
+                <text class="kind" x="18" y="74">observed use</text>
+              </g>
+
+              <g class="node attack" transform="translate(590 110)">
+                <rect width="140" height="100"></rect>
+                <text x="18" y="30">T1566</text>
+                <text x="18" y="50">Phishing</text>
+                <text class="kind" x="18" y="74">ATT&CK</text>
+              </g>
+
+              <g class="node capec" transform="translate(860 110)">
+                <rect width="140" height="100"></rect>
+                <text x="18" y="30">CAPEC-98</text>
+                <text x="18" y="50">Phishing</text>
+                <text class="kind" x="18" y="74">bridge fact</text>
+              </g>
+
+              <g class="node cwe" transform="translate(1080 110)">
+                <rect width="74" height="100"></rect>
+                <text x="12" y="30">CWE-451</text>
+                <text class="kind" x="12" y="54">UI</text>
+                <text class="kind" x="12" y="70">weakness</text>
+              </g>
+
+              <g class="node mit" transform="translate(704 360)">
+                <rect width="150" height="88"></rect>
+                <text x="18" y="30">M1017</text>
+                <text x="18" y="50">User Training</text>
+                <text class="kind" x="18" y="70">mitigation</text>
+              </g>
+
+              <g class="node mit" transform="translate(876 326)">
+                <rect width="178" height="88"></rect>
+                <text x="18" y="30">M1031</text>
+                <text x="18" y="50">Network Intrusion</text>
+                <text x="18" y="68">Prevention</text>
+              </g>
+
+              <text class="edge-label" x="236" y="146">uses</text>
+              <text class="edge-label" x="510" y="146">technique</text>
+              <text class="edge-label" x="772" y="146">Tech -> CAPEC</text>
+              <text class="edge-label" x="1016" y="146">CAPEC -> CWE</text>
+            </svg>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>Analyst question</strong>What weakness and defensive actions connect to Lazarus phishing behavior?</div>
+            <div class="note"><strong>Bridge value</strong>The CAPEC mapping keeps the answer grounded in the explicit MITRE relationship.</div>
+            <div class="note"><strong>Team takeaway</strong>The same retrieval pattern generalizes across groups, malware families, techniques, and root causes.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="vertical-compare">
+          <div class="slide-title">
+            <div>
+              <h2>CTI-RCM accuracy comparison</h2>
+              <p>Vertical chart version for presentation slides: CTI-Bench paper model baselines compared with our current CTI-RAG score on CVE-to-CWE root cause mapping.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg viewBox="0 0 1160 520" role="img" aria-label="Vertical bar chart comparing CTI-RCM accuracy across models">
+              <rect x="0" y="0" width="1160" height="520" fill="#f8f9fb"></rect>
+              <text x="580" y="38" text-anchor="middle" fill="#18202f" font-size="24" font-weight="760">CTI-Bench CTI-RCM: CVE Description -> CWE ID</text>
+              <line x1="56" y1="54" x2="1104" y2="54" stroke="#7d828c" stroke-width="2"></line>
+
+              <line x1="102" y1="86" x2="102" y2="422" stroke="#c9d1dd" stroke-width="1.5"></line>
+              <line x1="102" y1="422" x2="1080" y2="422" stroke="#c9d1dd" stroke-width="1.5"></line>
+
+              <g stroke="#e3e7ee" stroke-width="1">
+                <line x1="102" y1="422" x2="1080" y2="422"></line>
+                <line x1="102" y1="355" x2="1080" y2="355"></line>
+                <line x1="102" y1="288" x2="1080" y2="288"></line>
+                <line x1="102" y1="221" x2="1080" y2="221"></line>
+                <line x1="102" y1="154" x2="1080" y2="154"></line>
+                <line x1="102" y1="87" x2="1080" y2="87"></line>
+              </g>
+
+              <g fill="#384052" font-size="13" font-weight="650">
+                <text x="82" y="427" text-anchor="end">0</text>
+                <text x="82" y="360" text-anchor="end">20</text>
+                <text x="82" y="293" text-anchor="end">40</text>
+                <text x="82" y="226" text-anchor="end">60</text>
+                <text x="82" y="159" text-anchor="end">80</text>
+                <text x="82" y="92" text-anchor="end">100</text>
+              </g>
+
+              <text x="34" y="256" text-anchor="middle" transform="rotate(-90 34 256)" fill="#18202f" font-size="18" font-weight="720">Accuracy (%)</text>
+
+              <rect x="162" y="139" width="86" height="283" fill="#2d6cdf"></rect>
+              <text x="205" y="130" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">84.3</text>
+              <text x="205" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">CTI-RAG</text>
+              <text x="205" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">7B + RAG</text>
+
+              <rect x="310" y="181" width="86" height="241" fill="#8b95a7"></rect>
+              <text x="353" y="172" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">72.0</text>
+              <text x="353" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">ChatGPT-4</text>
+              <text x="353" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">paper</text>
+
+              <rect x="458" y="197" width="86" height="225" fill="#9aa3ad"></rect>
+              <text x="501" y="188" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">67.2</text>
+              <text x="501" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">ChatGPT-3.5</text>
+              <text x="501" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">paper</text>
+
+              <rect x="606" y="199" width="86" height="223" fill="#a6afb8"></rect>
+              <text x="649" y="190" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">66.6</text>
+              <text x="649" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">Gemini-1.5</text>
+              <text x="649" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">paper</text>
+
+              <rect x="754" y="201" width="86" height="221" fill="#b2bac3"></rect>
+              <text x="797" y="192" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">65.9</text>
+              <text x="797" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">LLAMA3-70B</text>
+              <text x="797" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">paper</text>
+
+              <rect x="902" y="272" width="86" height="150" fill="#c0c7d0"></rect>
+              <text x="945" y="263" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">44.7</text>
+              <text x="945" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">LLAMA3-8B</text>
+              <text x="945" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">paper</text>
+
+              <g transform="translate(300 492)">
+                <rect x="0" y="-13" width="14" height="14" fill="#2d6cdf"></rect>
+                <text x="22" y="0" fill="#384052" font-size="13" font-weight="650">CTI-RAG current result</text>
+                <rect x="224" y="-13" width="14" height="14" fill="#9aa3ad"></rect>
+                <text x="246" y="0" fill="#384052" font-size="13" font-weight="650">CTI-Bench paper baselines</text>
+              </g>
+            </svg>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>Task</strong>CTI-RCM maps a CVE vulnerability description to the correct CWE root-cause ID.</div>
+            <div class="note"><strong>Comparison</strong>Our 84.3% is compared to CTI-Bench paper baselines on the same CTI-RCM task.</div>
+            <div class="note"><strong>Caveat</strong>Our system uses retrieval over NVD/MITRE data; the paper model scores are memory-only baselines.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="mapped-compare">
+          <div class="slide-title">
+            <div>
+              <h2>CTI-RAG performance by NVD mapping status</h2>
+              <p>This split explains where the 84.3% overall score comes from: mapped CVEs benefit from NVD structured CWE bridge lookup, while unmapped CVEs rely on description similarity and k-NN CWE voting.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg viewBox="0 0 1160 520" role="img" aria-label="Vertical bar chart showing CTI-RAG mapped and unmapped CTI-RCM accuracy">
+              <rect x="0" y="0" width="1160" height="520" fill="#f8f9fb"></rect>
+              <text x="580" y="38" text-anchor="middle" fill="#18202f" font-size="24" font-weight="760">CTI-RAG CTI-RCM: NVD-Mapped vs NVD-Unmapped CVEs</text>
+              <line x1="56" y1="54" x2="1104" y2="54" stroke="#7d828c" stroke-width="2"></line>
+
+              <line x1="126" y1="86" x2="126" y2="422" stroke="#c9d1dd" stroke-width="1.5"></line>
+              <line x1="126" y1="422" x2="1034" y2="422" stroke="#c9d1dd" stroke-width="1.5"></line>
+
+              <g stroke="#e3e7ee" stroke-width="1">
+                <line x1="126" y1="422" x2="1034" y2="422"></line>
+                <line x1="126" y1="355" x2="1034" y2="355"></line>
+                <line x1="126" y1="288" x2="1034" y2="288"></line>
+                <line x1="126" y1="221" x2="1034" y2="221"></line>
+                <line x1="126" y1="154" x2="1034" y2="154"></line>
+                <line x1="126" y1="87" x2="1034" y2="87"></line>
+              </g>
+
+              <g fill="#384052" font-size="13" font-weight="650">
+                <text x="106" y="427" text-anchor="end">0</text>
+                <text x="106" y="360" text-anchor="end">20</text>
+                <text x="106" y="293" text-anchor="end">40</text>
+                <text x="106" y="226" text-anchor="end">60</text>
+                <text x="106" y="159" text-anchor="end">80</text>
+                <text x="106" y="92" text-anchor="end">100</text>
+              </g>
+
+              <text x="48" y="256" text-anchor="middle" transform="rotate(-90 48 256)" fill="#18202f" font-size="18" font-weight="720">Accuracy (%)</text>
+
+              <rect x="242" y="139" width="132" height="283" fill="#2d6cdf"></rect>
+              <text x="308" y="128" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">84.3</text>
+              <text x="308" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">All queries</text>
+              <text x="308" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">843 / 1000</text>
+
+              <rect x="514" y="132" width="132" height="290" fill="#1f8f6f"></rect>
+              <text x="580" y="121" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">86.6</text>
+              <text x="580" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">NVD-mapped</text>
+              <text x="580" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">782 / 903</text>
+
+              <rect x="786" y="211" width="132" height="211" fill="#b45f06"></rect>
+              <text x="852" y="200" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">62.9</text>
+              <text x="852" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">NVD-unmapped</text>
+              <text x="852" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">61 / 97</text>
+            </svg>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>Mapped CVEs</strong>903 of 1000 benchmark CVEs have an official NVD CWE assignment. Retrieval finds the matching CVE description and bridge-injects the structured CWE.</div>
+            <div class="note"><strong>Unmapped CVEs</strong>97 CVEs have no NVD CWE assignment. The system falls back to nearest mapped CVE descriptions and weighted CWE voting.</div>
+            <div class="note"><strong>Interpretation</strong>Mapped performance is retrieval-plus-lookup strength; unmapped performance is closer to generalization from vulnerability descriptions.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="improvements">
+          <div class="slide-title">
+            <div>
+              <h2>Clean techniques that improved unmapped CVE mapping</h2>
+              <p>For NVD-unmapped CVEs, there is no structured CWE label to copy. These changes improve candidate confidence and final CWE selection.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg viewBox="0 0 1160 520" role="img" aria-label="Clean CTI-RAG unmapped CVE improvement techniques">
+              <defs>
+                <marker id="arrow4" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto">
+                  <path d="M 2 2 L 10 6 L 2 10 z" fill="#263238"></path>
+                </marker>
+              </defs>
+
+              <rect x="0" y="0" width="1160" height="520" fill="#f8f9fb"></rect>
+              <text x="580" y="42" text-anchor="middle" fill="#18202f" font-size="24" font-weight="780">NVD-unmapped CTI-RCM improvement path</text>
+              <text x="580" y="68" text-anchor="middle" fill="#5c667a" font-size="14" font-weight="650">All numbers are on the same 97 NVD-unmapped cases</text>
+
+              <path class="edge" marker-end="url(#arrow4)" d="M238 194 C278 194 288 194 328 194"></path>
+              <path class="edge" marker-end="url(#arrow4)" d="M488 194 C528 194 538 194 578 194"></path>
+              <path class="edge" marker-end="url(#arrow4)" d="M738 194 C778 194 788 194 828 194"></path>
+
+              <g class="node cve" transform="translate(38 118)">
+                <rect width="200" height="152"></rect>
+                <text x="20" y="34">Baseline</text>
+                <text x="20" y="72" fill="#18202f" font-size="34" font-weight="820">61/97</text>
+                <text class="kind" x="20" y="102">62.9% accuracy</text>
+                <text class="kind" x="20" y="124">weighted k-NN present</text>
+              </g>
+
+              <g class="node attack" transform="translate(328 118)">
+                <rect width="160" height="152"></rect>
+                <text x="18" y="34">Technique 1</text>
+                <text x="18" y="60">k-NN confidence</text>
+                <text x="18" y="80">threshold</text>
+                <text x="18" y="114" fill="#18202f" font-size="26" font-weight="820">64/97</text>
+                <text class="kind" x="18" y="136">66.0%</text>
+              </g>
+
+              <g class="node capec" transform="translate(578 118)">
+                <rect width="160" height="152"></rect>
+                <text x="18" y="34">Technique 2</text>
+                <text x="18" y="60">k-NN vote</text>
+                <text x="18" y="80">margin check</text>
+                <text x="18" y="114" fill="#18202f" font-size="26" font-weight="820">65/97</text>
+                <text class="kind" x="18" y="136">67.0%</text>
+              </g>
+
+              <g class="node cwe" transform="translate(828 118)">
+                <rect width="280" height="152"></rect>
+                <text x="18" y="34">Technique 3</text>
+                <text x="18" y="60">Official CWE XML</text>
+                <text x="18" y="80">phrase selector</text>
+                <text x="18" y="114" fill="#18202f" font-size="26" font-weight="820">68/97</text>
+                <text class="kind" x="18" y="136">70.1%</text>
+              </g>
+
+              <g transform="translate(54 328)">
+                <rect x="0" y="0" width="318" height="116" rx="8" fill="#fff" stroke="#c9d1dd"></rect>
+                <text x="18" y="30" fill="#18202f" font-size="16" font-weight="780">1. Calibrated k-NN threshold</text>
+                <text x="18" y="56" fill="#5c667a" font-size="13" font-weight="650">Top CWE vote must reach 0.75 share before it can</text>
+                <text x="18" y="76" fill="#5c667a" font-size="13" font-weight="650">strip competing CWE evidence from context.</text>
+                <text x="18" y="100" fill="#2d6cdf" font-size="14" font-weight="820">+3 correct</text>
+              </g>
+
+              <g transform="translate(422 328)">
+                <rect x="0" y="0" width="318" height="116" rx="8" fill="#fff" stroke="#c9d1dd"></rect>
+                <text x="18" y="30" fill="#18202f" font-size="16" font-weight="780">2. Added k-NN margin check</text>
+                <text x="18" y="56" fill="#5c667a" font-size="13" font-weight="650">Top CWE must beat the second CWE by 1.25x, so</text>
+                <text x="18" y="76" fill="#5c667a" font-size="13" font-weight="650">near-ties stay soft hints instead of hard filters.</text>
+                <text x="18" y="100" fill="#1f8f6f" font-size="14" font-weight="820">+1 correct</text>
+              </g>
+
+              <g transform="translate(790 328)">
+                <rect x="0" y="0" width="318" height="116" rx="8" fill="#fff" stroke="#c9d1dd"></rect>
+                <text x="18" y="30" fill="#18202f" font-size="16" font-weight="780">3. Official CWE XML aliases</text>
+                <text x="18" y="56" fill="#5c667a" font-size="13" font-weight="650">Generate phrases from raw CWE XML names and</text>
+                <text x="18" y="76" fill="#5c667a" font-size="13" font-weight="650">alternate terms, then select only within context.</text>
+                <text x="18" y="100" fill="#b45f06" font-size="14" font-weight="820">+3 correct</text>
+              </g>
+
+            </svg>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>What improved</strong>The system became more careful about when k-NN can override context, then added an official alias selector for cases where the correct CWE is already retrieved.</div>
+            <div class="note"><strong>What stayed clean</strong>The phrase dictionary is generated for all CWEs from raw MITRE CWE XML, not from CTI-Bench failures.</div>
+            <div class="note"><strong>Result</strong>NVD-unmapped accuracy improved from 61/97 to 68/97, or 62.9% to 70.1%.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="data-sources">
+          <div class="slide-title">
+            <div>
+              <h2>Raw data sources behind CTI-RAG</h2>
+              <p>The system uses public MITRE and NVD datasets as its knowledge base, and CTI-Bench only as the evaluation benchmark.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <div class="source-board" aria-label="Data sources used by CTI-RAG">
+              <div class="source-card attack">
+                <h3>MITRE ATT&CK</h3>
+                <p>Public adversary behavior knowledge base. We use it for groups, malware/tools, techniques, tactics, and mitigations.<br><br><code>https://github.com/mitre-attack/attack-stix-data</code></p>
+              </div>
+
+              <div class="source-card capec">
+                <h3>MITRE CAPEC</h3>
+                <p>Public attack pattern catalog. We use it for CAPEC attack patterns and mappings into other MITRE taxonomies.<br><br><code>https://capec.mitre.org/data/downloads</code></p>
+              </div>
+
+              <div class="source-card cwe">
+                <h3>MITRE CWE</h3>
+                <p>Public software weakness taxonomy. We use it for CWE weakness definitions, hierarchy, and mitigation text.<br><br><code>https://cwe.mitre.org/data/downloads</code></p>
+              </div>
+
+              <div class="source-card cve">
+                <h3>NVD CVE Data</h3>
+                <p>Public vulnerability records from NIST NVD. We use CVE descriptions and official CWE assignments from NVD metadata.<br><br><code>https://nvd.nist.gov/vuln/data-feeds</code></p>
+              </div>
+
+              <div class="source-card eval">
+                <h3>CTI-Bench Paper</h3>
+                <p>Benchmark paper used for model baseline comparison and task framing.<br><br><code>https://arxiv.org/abs/2406.07599</code></p>
+              </div>
+
+              <div class="source-card eval">
+                <h3>CTI-Bench Dataset</h3>
+                <p>Public benchmark repository. We use CTI-RCM prompts and ground-truth labels for evaluation only, not as retrieval evidence.<br><br><code>https://github.com/xashru/cti-bench</code></p>
+              </div>
+            </div>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>Knowledge sources</strong>ATT&CK, CAPEC, CWE, and NVD are the raw public sources used by the system.</div>
+            <div class="note"><strong>Evaluation source</strong>CTI-Bench provides the CTI-RCM benchmark prompts and ground-truth CWE labels.</div>
+            <div class="note"><strong>Important distinction</strong>We are not leaking benchmark answers into retrieval. CTI-Bench is the exam sheet, not the textbook.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="performance">
+          <div class="slide-title">
+            <div>
+              <h2>RAG performance: retrieval and prompt latency</h2>
+              <p>Profiling moved retrieval from multi-second Python loops to vectorized scoring and cached embeddings. The measured sample below separates retrieval speedup from current end-to-end prompt latency.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <svg id="retrieval-speed-svg" viewBox="0 0 1160 520" role="img" aria-label="RAG retrieval latency and evaluation runtime performance dashboard">
+              <rect x="0" y="0" width="1160" height="520" fill="#f8f9fb"></rect>
+              <text x="64" y="52" fill="#18202f" font-size="24" font-weight="780">Retrieval latency per query</text>
+              <text x="64" y="78" fill="#5c667a" font-size="14" font-weight="650">Measured during profiling on CVE-description style queries</text>
+
+              <line x1="118" y1="112" x2="118" y2="390" stroke="#c9d1dd" stroke-width="1.5"></line>
+              <line x1="118" y1="390" x2="1030" y2="390" stroke="#c9d1dd" stroke-width="1.5"></line>
+
+              <g stroke="#e3e7ee" stroke-width="1">
+                <line x1="118" y1="390" x2="1030" y2="390"></line>
+                <line x1="118" y1="320" x2="1030" y2="320"></line>
+                <line x1="118" y1="250" x2="1030" y2="250"></line>
+                <line x1="118" y1="180" x2="1030" y2="180"></line>
+                <line x1="118" y1="110" x2="1030" y2="110"></line>
+              </g>
+
+              <g fill="#384052" font-size="13" font-weight="650">
+                <text x="96" y="395" text-anchor="end">0s</text>
+                <text x="96" y="325" text-anchor="end">5s</text>
+                <text x="96" y="255" text-anchor="end">10s</text>
+                <text x="96" y="185" text-anchor="end">15s</text>
+                <text x="96" y="115" text-anchor="end">20s</text>
+              </g>
+
+              <rect x="304" y="152" width="150" height="238" fill="#b45f06"></rect>
+              <text x="379" y="140" text-anchor="middle" fill="#384052" font-size="16" font-weight="780">9-17s</text>
+              <text x="379" y="420" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">Before</text>
+              <text x="379" y="442" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">Python BM25 loops</text>
+
+              <rect x="720" y="386" width="150" height="4" fill="#1f8f6f"></rect>
+              <text x="795" y="374" text-anchor="middle" fill="#384052" font-size="16" font-weight="780">0.1-0.3s</text>
+              <text x="795" y="420" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">After</text>
+              <text x="795" y="442" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">vectorized retrieval</text>
+
+              <rect x="430" y="468" width="300" height="34" rx="8" fill="#fff" stroke="#c9d1dd"></rect>
+              <text x="580" y="490" text-anchor="middle" fill="#18202f" font-size="18" font-weight="820">~50x faster retrieval</text>
+            </svg>
+            <section class="latency-panel">
+              <h3>Measured prompt latency sample</h3>
+              <p id="latency-caption">Run <code>CTI_RAG_CAPTURE_TIMING=1 conda run -n cyber-ft python3 -u measure_latency_sample.py 20</code> to generate real per-prompt timings.</p>
+              <div class="latency-summary" id="latency-summary"></div>
+              <div class="latency-bars" id="latency-bars"></div>
+              <div class="latency-legend">
+                <span><i style="background:#2d6cdf"></i>Retrieve</span>
+                <span><i style="background:#1f8f6f"></i>Graph / bridge / prompt</span>
+                <span><i style="background:#7c4dff"></i>LLM</span>
+                <span><i style="background:#18202f"></i>Total</span>
+              </div>
+            </section>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>What changed</strong>Retrieval now uses vectorized scoring and cached embeddings instead of slow Python loops.</div>
+            <div class="note"><strong>Why it matters</strong>Fast retrieval makes CTI-RAG usable for interactive analysis, not just offline evaluation.</div>
+            <div class="note"><strong>Timing view</strong>The measured sample separates retrieval, graph/bridge processing, and LLM generation so we can see where latency comes from.</div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    if (new URLSearchParams(location.search).get("export") === "1") {
+      document.body.classList.add("export-mode");
+    }
+
+    const buttons = [...document.querySelectorAll("button[data-slide]")];
+    const slides = [...document.querySelectorAll(".slide")];
+
+    function showSlide(id) {
+      for (const button of buttons) {
+        button.classList.toggle("active", button.dataset.slide === id);
+      }
+      for (const slide of slides) {
+        slide.classList.toggle("active", slide.id === id);
+      }
+      if (location.hash.slice(1) !== id) {
+        history.replaceState(null, "", `#${id}`);
+      }
+    }
+
+    for (const button of buttons) {
+      button.addEventListener("click", () => showSlide(button.dataset.slide));
+    }
+
+    const initialSlide = location.hash.slice(1);
+    if (initialSlide && document.getElementById(initialSlide)) {
+      showSlide(initialSlide);
+    }
+
+    window.addEventListener("keydown", (event) => {
+      const current = buttons.findIndex((button) => button.classList.contains("active"));
+      if (event.key === "ArrowRight") {
+        const next = buttons[(current + 1) % buttons.length];
+        showSlide(next.dataset.slide);
+      }
+      if (event.key === "ArrowLeft") {
+        const next = buttons[(current - 1 + buttons.length) % buttons.length];
+        showSlide(next.dataset.slide);
+      }
+    });
+
+    function seconds(value) {
+      return `${Number(value || 0).toFixed(2)}s`;
+    }
+
+    function latencyLabel(value) {
+      return Number(value || 0).toFixed(2);
+    }
+
+    function svgText(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function renderRetrievalSpeed(payload) {
+      const svg = document.getElementById("retrieval-speed-svg");
+      if (!svg || !payload || !payload.results) return;
+
+      const rows = payload.results.map((row) => ({
+        label: `${row.index}. ${row.cve_id || "prompt"}`,
+        before: row.before_retrieve_s || 0,
+        after: row.after_retrieve_s || 0,
+      }));
+      const width = 1160;
+      const height = 520;
+      const margin = { top: 138, right: 34, bottom: 76, left: 88 };
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+      const maxValue = Math.max(...rows.flatMap((row) => [row.before, row.after]), 1);
+      const yMax = Math.max(2, Math.ceil(maxValue / 2) * 2);
+      const ticks = Array.from({ length: 6 }, (_, index) => yMax / 5 * index);
+      const groupWidth = plotWidth / rows.length;
+      const barWidth = Math.min(26, Math.max(12, groupWidth * 0.22));
+      const barGap = 8;
+      const clusterWidth = barWidth * 2 + barGap;
+      const avgSpeedup = payload.summary?.avg_speedup || 0;
+
+      const grid = ticks.map((tick) => {
+        const y = margin.top + plotHeight - (tick / yMax * plotHeight);
+        return `
+          <line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="#e3e7ee" stroke-width="1"></line>
+          <text x="${margin.left - 12}" y="${y + 4}" text-anchor="end" fill="#384052" font-size="13" font-weight="650">${latencyLabel(tick)}s</text>
+        `;
+      }).join("");
+
+      const groups = rows.map((row, rowIndex) => {
+        const centerX = margin.left + groupWidth * rowIndex + groupWidth / 2;
+        const values = [
+          ["before", row.before, "#4f6bed"],
+          ["after", row.after, "#1f8f6f"],
+        ];
+        const barsSvg = values.map(([key, value, color], seriesIndex) => {
+          const barHeight = Math.max(2, value / yMax * plotHeight);
+          const x = centerX - clusterWidth / 2 + seriesIndex * (barWidth + barGap);
+          const y = margin.top + plotHeight - barHeight;
+          const labelY = key === "after" ? margin.top + plotHeight - 8 : Math.max(margin.top + 12, y - 7);
+          const valueLabel = `
+            <text x="${x + barWidth / 2}" y="${labelY}" text-anchor="middle" fill="#384052" font-size="10.5" font-weight="780">${latencyLabel(value)}</text>
+          `;
+          return `
+            <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${color}"></rect>
+            ${valueLabel}
+          `;
+        }).join("");
+        const [prefix, rest] = row.label.split(" ");
+        return `
+          <g>
+            ${barsSvg}
+            <text x="${centerX}" y="${height - 50}" text-anchor="middle" fill="#18202f" font-size="12" font-weight="720">${svgText(prefix)}</text>
+            <text x="${centerX}" y="${height - 30}" text-anchor="middle" fill="#5c667a" font-size="10.5" font-weight="650">${svgText(rest || row.label)}</text>
+          </g>
+        `;
+      }).join("");
+
+      svg.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="#f8f9fb"></rect>
+        <text x="64" y="52" fill="#18202f" font-size="24" font-weight="780">Measured retrieval latency before vs after vectorization</text>
+
+        <g transform="translate(64 74)">
+          <rect x="0" y="0" width="518" height="42" rx="8" fill="#fff" stroke="#c9d1dd"></rect>
+          <text x="18" y="27" fill="#5c667a" font-size="15" font-weight="760">Average retrieval time</text>
+          <text x="220" y="27" fill="#18202f" font-size="18" font-weight="820">${latencyLabel(payload.summary?.avg_before_retrieve_s)}s -> ${latencyLabel(payload.summary?.avg_after_retrieve_s)}s</text>
+          <text x="370" y="27" fill="#1f8f6f" font-size="18" font-weight="820">~${Math.round(avgSpeedup)}x faster</text>
+        </g>
+
+        ${grid}
+        <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + plotHeight}" stroke="#c9d1dd" stroke-width="1.5"></line>
+        <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}" stroke="#c9d1dd" stroke-width="1.5"></line>
+        <text x="26" y="${margin.top + plotHeight / 2}" transform="rotate(-90 26 ${margin.top + plotHeight / 2})" text-anchor="middle" fill="#18202f" font-size="14" font-weight="720">Retrieval latency (seconds)</text>
+
+        ${groups}
+
+        <g transform="translate(804 30)">
+          <rect x="0" y="0" width="298" height="44" rx="8" fill="#fff" stroke="#c9d1dd"></rect>
+          <rect x="18" y="16" width="13" height="13" fill="#4f6bed"></rect>
+          <text x="38" y="27" fill="#18202f" font-size="13" font-weight="720">Before vectorized</text>
+          <rect x="154" y="16" width="13" height="13" fill="#1f8f6f"></rect>
+          <text x="174" y="27" fill="#18202f" font-size="13" font-weight="720">After</text>
+        </g>
+      `;
+    }
+
+    function renderLatency(payload) {
+      const summary = document.getElementById("latency-summary");
+      const bars = document.getElementById("latency-bars");
+      const caption = document.getElementById("latency-caption");
+      if (!summary || !bars || !payload || !payload.results) return;
+
+      const s = payload.summary || {};
+      caption.textContent = `Measured sample: n=${payload.sample_size}, seed=${payload.seed}, generated ${payload.generated_at}.`;
+      summary.innerHTML = [
+        ["Avg retrieve", seconds(s.avg_retrieve_s)],
+        ["Avg LLM", seconds(s.avg_llm_s)],
+        ["Avg total", seconds(s.avg_total_s)],
+        ["P95 total", seconds(s.p95_total_s)],
+      ].map(([label, value]) => `<div class="latency-stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
+
+      const rows = payload.results.map((row) => {
+        const graph = (row.filters_s || 0) + (row.graph_s || 0) + (row.neighbors_s || 0) + (row.prompt_s || 0);
+        return {
+          label: `${row.index}. ${row.cve_id || "prompt"}`,
+          retrieve: row.retrieve_s || 0,
+          graph,
+          llm: row.llm_s || 0,
+          total: row.total_s || 0,
+        };
+      });
+
+      const series = [
+        ["retrieve", "#2d6cdf"],
+        ["graph", "#1f8f6f"],
+        ["llm", "#7c4dff"],
+        ["total", "#18202f"],
+      ];
+      const width = 1120;
+      const height = 430;
+      const margin = { top: 30, right: 24, bottom: 78, left: 70 };
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+      const maxValue = Math.max(...rows.flatMap((row) => series.map(([key]) => row[key])), 0.1);
+      const yMax = Math.max(1, Math.ceil(maxValue * 2) / 2);
+      const ticks = Array.from({ length: 6 }, (_, index) => yMax / 5 * index);
+      const groupWidth = plotWidth / rows.length;
+      const barGap = 5;
+      const barWidth = Math.min(22, Math.max(10, (groupWidth - 38) / series.length - barGap));
+      const clusterWidth = series.length * barWidth + (series.length - 1) * barGap;
+
+      const grid = ticks.map((tick) => {
+        const y = margin.top + plotHeight - (tick / yMax * plotHeight);
+        return `
+          <line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="#e3e7ee" stroke-width="1"></line>
+          <text x="${margin.left - 12}" y="${y + 4}" text-anchor="end" fill="#384052" font-size="12" font-weight="650">${latencyLabel(tick)}</text>
+        `;
+      }).join("");
+
+      const groups = rows.map((row, rowIndex) => {
+        const centerX = margin.left + groupWidth * rowIndex + groupWidth / 2;
+        const barsSvg = series.map(([key, color], seriesIndex) => {
+          const value = row[key];
+          const barHeight = value / yMax * plotHeight;
+          const x = centerX - clusterWidth / 2 + seriesIndex * (barWidth + barGap);
+          const y = margin.top + plotHeight - barHeight;
+          const labelY = Math.max(margin.top + 12, y - 6);
+          const valueLabel = key === "total"
+            ? `<text x="${x + barWidth / 2}" y="${labelY}" text-anchor="middle" fill="#18202f" font-size="11" font-weight="820">${latencyLabel(value)}</text>`
+            : "";
+          return `
+            <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${color}"></rect>
+            ${valueLabel}
+          `;
+        }).join("");
+        const [prefix, rest] = row.label.split(" ");
+        return `
+          <g>
+            ${barsSvg}
+            <text x="${centerX}" y="${height - 42}" text-anchor="middle" fill="#18202f" font-size="12" font-weight="720">${svgText(prefix)}</text>
+            <text x="${centerX}" y="${height - 24}" text-anchor="middle" fill="#5c667a" font-size="11" font-weight="650">${svgText(rest || row.label)}</text>
+          </g>
+        `;
+      }).join("");
+
+      bars.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Measured per-prompt latency grouped vertical bar chart">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
+          <text x="${width / 2}" y="20" text-anchor="middle" fill="#18202f" font-size="18" font-weight="780">Measured prompt latency sample</text>
+          ${grid}
+          <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + plotHeight}" stroke="#c9d1dd" stroke-width="1.5"></line>
+          <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}" stroke="#c9d1dd" stroke-width="1.5"></line>
+          <text x="22" y="${margin.top + plotHeight / 2}" transform="rotate(-90 22 ${margin.top + plotHeight / 2})" text-anchor="middle" fill="#18202f" font-size="14" font-weight="720">Latency (seconds)</text>
+          ${groups}
+        </svg>
+      `;
+    }
+
+    fetch("performance_sample.json", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then(renderLatency)
+      .catch(() => {});
+
+    fetch("retrieval_speed_sample.json", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then(renderRetrievalSpeed)
+      .catch(() => {});
+  </script>
+</body>
+</html>
