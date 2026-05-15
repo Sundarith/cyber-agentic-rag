@@ -18,7 +18,12 @@ from sentence_transformers import SentenceTransformer
 
 ATTACK_CHUNKS = Path("data/processed/attack_chunks.jsonl")
 CAPEC_CHUNKS  = Path("data/processed/capec_chunks.jsonl")
-CWE_CHUNKS    = Path("data/processed/cwe_chunks.jsonl")
+# CWE chunks can optionally be loaded from the per-CWE-augmented file (each CWE
+# enriched with 3 sampled real-CVE descriptions from the mapped corpus). This
+# shifts each CWE's embedding toward CVE-prose semantic space.
+_CWE_AUGMENTED_ENV = os.environ.get("CTI_RAG_CWE_AUGMENTED", "0") == "1"
+CWE_CHUNKS    = (Path("data/processed/cwe_chunks_augmented.jsonl")
+                 if _CWE_AUGMENTED_ENV else Path("data/processed/cwe_chunks.jsonl"))
 CVE_CHUNKS    = Path("data/processed/cve_chunks.jsonl")
 RELATIONS     = Path("data/processed/entity_relations.json")
 CAPEC_RELS    = Path("data/processed/capec_attack_relations.json")
@@ -31,7 +36,8 @@ BM25_K1      = 1.5
 BM25_B       = 0.75
 HYBRID_ALPHA = 0.5   # 0 = pure BM25, 1 = pure embedding
 TOP_K        = 8
-EMB_CACHE    = Path("data/processed/chunk_embs.npy")
+EMB_CACHE    = (Path("data/processed/chunk_embs_augmented.npy")
+                if _CWE_AUGMENTED_ENV else Path("data/processed/chunk_embs.npy"))
 KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
 KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.75"))
 KNN_CONFIDENCE_MARGIN = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_MARGIN", "1.25"))

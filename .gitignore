@@ -12,6 +12,7 @@ data/raw/cvelistV5/
 # Generated files — rebuilt automatically by build_*.py and better_rag.py
 data/processed/cve_chunks.jsonl
 data/processed/chunk_embs.npy
+data/processed/chunk_embs_augmented.npy
 
 # Third-party/local benchmark checkout
 data/cti-bench/
