@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  background: #fff;
+}
+svg { display: block; }
+.axis-line { stroke: #18202f; stroke-width: 1.5; fill: none; }
+.grid-line { stroke: #e0e4eb; stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
+.tick-label { fill: #5c667a; font-size: 11px; }
+.axis-title { fill: #18202f; font-size: 12px; font-weight: 600; }
+.chart-title { fill: #18202f; font-size: 16px; font-weight: 700; }
+.bar-total { fill: #1c2538; }
+.bar-unmapped { fill: #1f8f6f; }
+.bar-label { fill: #18202f; font-size: 10px; font-weight: 700; text-anchor: middle; }
+.bar-label-white { fill: #fff; font-size: 10px; font-weight: 700; text-anchor: middle; }
+.x-label { fill: #18202f; font-size: 11px; font-weight: 600; text-anchor: middle; }
+.x-sub { fill: #5c667a; font-size: 10px; text-anchor: middle; }
+.legend-text { fill: #18202f; font-size: 11px; font-weight: 600; }
+</style></head><body>
+<svg viewBox="0 0 860 500" xmlns="http://www.w3.org/2000/svg" width="2580" height="1500">
+  <!-- Title -->
+  <text class="chart-title" x="430" y="28" text-anchor="middle">CTI-RCM Accuracy by Pipeline Stage</text>
+
+  <!-- Legend -->
+  <g transform="translate(500 50)">
+    <rect class="bar-total" x="0" y="0" width="14" height="14"></rect>
+    <text class="legend-text" x="22" y="12">Total (1000 queries)</text>
+    <rect class="bar-unmapped" x="160" y="0" width="14" height="14"></rect>
+    <text class="legend-text" x="182" y="12">NVD-unmapped (97)</text>
+  </g>
+
+  <!-- Y axis grid lines and labels -->
+  <!-- Y-axis: maps 60% to 90% across chart-area y=400 to y=80 -->
+  <!-- y = 400 - (val - 60) * (320 / 30) = 400 - (val-60)*10.667 -->
+  <line class="grid-line" x1="80" y1="80" x2="820" y2="80"></line>
+  <line class="grid-line" x1="80" y1="133" x2="820" y2="133"></line>
+  <line class="grid-line" x1="80" y1="187" x2="820" y2="187"></line>
+  <line class="grid-line" x1="80" y1="240" x2="820" y2="240"></line>
+  <line class="grid-line" x1="80" y1="293" x2="820" y2="293"></line>
+  <line class="grid-line" x1="80" y1="347" x2="820" y2="347"></line>
+  <line class="grid-line" x1="80" y1="400" x2="820" y2="400"></line>
+
+  <text class="tick-label" x="72" y="84" text-anchor="end">90%</text>
+  <text class="tick-label" x="72" y="137" text-anchor="end">85%</text>
+  <text class="tick-label" x="72" y="191" text-anchor="end">80%</text>
+  <text class="tick-label" x="72" y="244" text-anchor="end">75%</text>
+  <text class="tick-label" x="72" y="297" text-anchor="end">70%</text>
+  <text class="tick-label" x="72" y="351" text-anchor="end">65%</text>
+  <text class="tick-label" x="72" y="404" text-anchor="end">60%</text>
+
+  <!-- Y-axis label -->
+  <text class="axis-title" x="30" y="240" text-anchor="middle" transform="rotate(-90 30 240)">Strict accuracy</text>
+
+  <!-- X axis -->
+  <line class="axis-line" x1="80" y1="400" x2="820" y2="400"></line>
+  <line class="axis-line" x1="80" y1="80" x2="80" y2="400"></line>
+
+  <!-- Bars. Total bar at left of each group, unmapped at right. -->
+  <!-- 5 groups, each ~140px wide. Total bar width 40px, unmapped 40px, gap 8px. Centered. -->
+  <!-- Group 1 center at x=180 -->
+  <!-- Group 2 center at x=320 -->
+  <!-- Group 3 center at x=460 -->
+  <!-- Group 4 center at x=600 -->
+  <!-- Group 5 center at x=740 -->
+
+  <!-- Helper: y = 400 - (val-60) * 10.667 -->
+  <!-- 84.3 → 400 - 24.3*10.667 = 400 - 259 = 141 -->
+  <!-- 62.9 → 400 - 2.9*10.667 = 400 - 31 = 369 -->
+  <!-- 70.1 → 400 - 10.1*10.667 = 400 - 108 = 292 -->
+  <!-- 72.2 → 400 - 12.2*10.667 = 400 - 130 = 270 -->
+  <!-- 74.2 → 400 - 14.2*10.667 = 400 - 151 = 249 -->
+  <!-- 84.5 → 400 - 24.5*10.667 = 400 - 261 = 139 -->
+  <!-- 84.9 → 400 - 24.9*10.667 = 400 - 266 = 134 -->
+  <!-- 85.1 → 400 - 25.1*10.667 = 400 - 268 = 132 -->
+
+  <!-- Group 1: Baseline + Bridge (84.3 / 62.9) -->
+  <rect class="bar-total" x="156" y="141" width="44" height="259"></rect>
+  <rect class="bar-unmapped" x="204" y="369" width="44" height="31"></rect>
+  <text class="bar-label" x="178" y="135">84.3%</text>
+  <text class="bar-label" x="226" y="363">62.9%</text>
+  <text class="x-label" x="202" y="424">Baseline</text>
+  <text class="x-sub" x="202" y="438">+ Bridge</text>
+
+  <!-- Group 2: + Phrase Selector (84.3 / 70.1) -->
+  <rect class="bar-total" x="296" y="141" width="44" height="259"></rect>
+  <rect class="bar-unmapped" x="344" y="292" width="44" height="108"></rect>
+  <text class="bar-label" x="318" y="135">84.3%</text>
+  <text class="bar-label" x="366" y="286">70.1%</text>
+  <text class="x-label" x="342" y="424">+ Phrase</text>
+  <text class="x-sub" x="342" y="438">selector</text>
+
+  <!-- Group 3: + Cross-encoder (84.5 / 72.2) -->
+  <rect class="bar-total" x="436" y="139" width="44" height="261"></rect>
+  <rect class="bar-unmapped" x="484" y="270" width="44" height="130"></rect>
+  <text class="bar-label" x="458" y="133">84.5%</text>
+  <text class="bar-label" x="506" y="264">72.2%</text>
+  <text class="x-label" x="482" y="424">+ Cross-</text>
+  <text class="x-sub" x="482" y="438">encoder</text>
+
+  <!-- Group 4: + HyDE + CE filter (84.9 / 72.2) -->
+  <rect class="bar-total" x="576" y="134" width="44" height="266"></rect>
+  <rect class="bar-unmapped" x="624" y="270" width="44" height="130"></rect>
+  <text class="bar-label" x="598" y="128">84.9%</text>
+  <text class="bar-label" x="646" y="264">72.2%</text>
+  <text class="x-label" x="622" y="424">+ HyDE</text>
+  <text class="x-sub" x="622" y="438">+ CE filter</text>
+
+  <!-- Group 5: + k-NN tune (locked) (85.1 / 74.2) -->
+  <rect class="bar-total" x="716" y="132" width="44" height="268"></rect>
+  <rect class="bar-unmapped" x="764" y="249" width="44" height="151"></rect>
+  <text class="bar-label" x="738" y="126">85.1%</text>
+  <text class="bar-label" x="786" y="243">74.2%</text>
+  <text class="x-label" x="762" y="424">+ k-NN tune</text>
+  <text class="x-sub" x="762" y="438">(locked)</text>
+
+  <!-- Caption -->
+  <text class="x-sub" x="430" y="478" text-anchor="middle">Cumulative ablation. Each stage builds on the previous. 5 conditions evaluated on the full 1000-query CTI-Bench RCM split.</text>
+</svg>
+</body></html>

@@ -12,20 +12,20 @@ The system uses hybrid retrieval, explicit MITRE/NVD relationship bridges, graph
 
 ## Result
 
-CTI-RAG scores **84.9% (849/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping.
+CTI-RAG scores **85.1% (851/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping.
 
 | System | CTI-RCM score | Setup |
 | --- | ---: | --- |
-| CTI-RAG | **84.9%** | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data + cross-encoder reorder + HyDE candidate expansion |
+| CTI-RAG | **85.1%** | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data + cross-encoder reorder + HyDE candidate expansion |
 | GPT-4 in CTI-Bench | 72.0% | Frontier model, no retrieval, memory-only answering |
 
 Breakdown:
 
 | Subset | Score |
 | --- | ---: |
-| All 1000 queries | **84.9%** (849/1000) |
+| All 1000 queries | **85.1%** (851/1000) |
 | NVD-mapped CVEs | **86.3%** (779/903) |
-| NVD-unmapped CVEs | **72.2%** (70/97) |
+| NVD-unmapped CVEs | **74.2%** (72/97) |
 
 The hard NVD-unmapped subset (no structured CWE in NVD, the system has to reason from the CVE description) lifted from the previous 62.9% baseline by adding two retrieval-side stages: cross-encoder re-ranking with `BAAI/bge-reranker-base` and HyDE-style candidate expansion with a cross-encoder noise filter.
 
@@ -205,7 +205,7 @@ Use the same CTI-Bench prompt field used for the published GPT-4 comparison:
 conda run -n cyber-ft python3 -u eval_rcm.py 1000
 ```
 
-For the locked 84.9% result, enable the four retrieval-side env flags:
+For the locked 85.1% result, enable the four retrieval-side env flags:
 
 ```bash
 CTI_RAG_CWE_PHRASE_SELECTOR=1 \

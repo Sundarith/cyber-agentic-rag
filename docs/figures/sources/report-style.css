@@ -1,0 +1,219 @@
+/* Paper-style report CSS — clean academic look with proper table styling */
+
+@page {
+  size: letter;
+  margin: 0.75in;
+}
+
+body {
+  max-width: 7in;
+  margin: 0 auto;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11pt;
+  line-height: 1.55;
+  color: #18202f;
+}
+
+h1, h2, h3, h4 {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  color: #18202f;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 22pt;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 18pt;
+  text-align: center;
+}
+
+h2 {
+  font-size: 15pt;
+  font-weight: 700;
+  margin-top: 22pt;
+  margin-bottom: 10pt;
+  padding-bottom: 6pt;
+  border-bottom: 2px solid #1c2538;
+}
+
+h3 {
+  font-size: 12.5pt;
+  font-weight: 700;
+  margin-top: 16pt;
+  margin-bottom: 6pt;
+  color: #1c2538;
+}
+
+h4 {
+  font-size: 11.5pt;
+  font-weight: 700;
+  margin-top: 12pt;
+  margin-bottom: 4pt;
+}
+
+p {
+  margin: 0 0 9pt 0;
+  text-align: justify;
+}
+
+strong { color: #18202f; font-weight: 700; }
+
+code {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 9.5pt;
+  background: #eef2f7;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #b02a37;
+}
+
+pre {
+  background: #f7f8fb;
+  border: 1px solid #e0e4eb;
+  border-radius: 4px;
+  padding: 10pt 12pt;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 9pt;
+  line-height: 1.4;
+  overflow-x: auto;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: #18202f;
+  font-size: inherit;
+}
+
+/* ============ TABLES ============ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12pt 0 16pt 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  font-size: 10pt;
+  page-break-inside: avoid;
+  box-shadow: 0 1px 0 #c9d1dd;
+}
+
+table thead {
+  background: #1c2538;
+  color: #fff;
+}
+
+table thead th {
+  padding: 7pt 10pt;
+  text-align: left;
+  font-weight: 600;
+  font-size: 10pt;
+  border: none;
+}
+
+table tbody td {
+  padding: 6pt 10pt;
+  border-bottom: 1px solid #e0e4eb;
+  vertical-align: top;
+}
+
+table tbody tr:nth-child(even) {
+  background: #f7f8fb;
+}
+
+table tbody tr:last-child td {
+  border-bottom: 2px solid #1c2538;
+}
+
+/* Numeric alignment for cells that look numeric */
+table td:last-child:not(:only-child),
+table th:last-child:not(:only-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* But override for tables where the last column is text */
+table[class*="left-text"] td:last-child,
+table[class*="left-text"] th:last-child {
+  text-align: left;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 12pt auto;
+}
+
+a {
+  color: #2d6cdf;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(45, 108, 223, 0.3);
+}
+
+a:hover {
+  color: #1c4ba8;
+  border-bottom-color: #1c4ba8;
+}
+
+a:visited {
+  color: #5c4ddf;
+}
+
+ul, ol {
+  margin: 6pt 0 9pt 0;
+  padding-left: 24pt;
+}
+
+li {
+  margin: 3pt 0;
+}
+
+/* Title block */
+.title {
+  font-size: 22pt;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Make blockquotes pop a bit */
+blockquote {
+  border-left: 3px solid #c9d1dd;
+  padding-left: 12pt;
+  color: #5c667a;
+  margin: 8pt 0;
+}
+
+/* Page breaks before major sections */
+h2 + p, h2 + ul, h2 + table { page-break-before: avoid; }
+
+/* TOC styling */
+#TOC, nav#TOC {
+  background: #f7f8fb;
+  border: 1px solid #e0e4eb;
+  border-radius: 4px;
+  padding: 12pt 16pt;
+  margin: 16pt 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  font-size: 10pt;
+}
+
+#TOC ul {
+  list-style: none;
+  padding-left: 12pt;
+  margin: 0;
+}
+
+#TOC > ul {
+  padding-left: 0;
+}
+
+#TOC li {
+  margin: 3pt 0;
+}
+
+#TOC a {
+  color: #18202f;
+  text-decoration: none;
+}

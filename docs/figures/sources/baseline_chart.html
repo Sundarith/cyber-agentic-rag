@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  background: #fff;
+}
+svg { display: block; }
+.chart-title { fill: #18202f; font-size: 17px; font-weight: 700; }
+.method-name { fill: #18202f; font-size: 13px; font-weight: 700; }
+.method-sub { fill: #5c667a; font-size: 10.5px; font-weight: 500; }
+.bar-value { fill: #18202f; font-size: 13px; font-weight: 700; }
+.bar-value-ours { fill: #047857; font-size: 16px; font-weight: 800; }
+.axis-tick { fill: #5c667a; font-size: 11px; }
+.grid { stroke: #e0e4eb; stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
+.gpt4-baseline-line { stroke: #b02a37; stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+.baseline-label { fill: #b02a37; font-size: 10.5px; font-weight: 700; }
+.legend-text { fill: #18202f; font-size: 11px; font-weight: 600; }
+</style></head><body>
+<svg viewBox="0 0 1100 720" xmlns="http://www.w3.org/2000/svg" width="3300" height="2160">
+  <!-- Title -->
+  <text class="chart-title" x="550" y="28" text-anchor="middle">CTI-Bench RCM strict accuracy: 10-model leaderboard</text>
+
+  <!-- Legend -->
+  <g transform="translate(280 50)">
+    <rect x="0" y="0" width="14" height="14" fill="#047857"></rect>
+    <text class="legend-text" x="22" y="12">Ours (7B + local RAG)</text>
+    <rect x="220" y="0" width="14" height="14" fill="#2d6cdf"></rect>
+    <text class="legend-text" x="242" y="12">Open-source</text>
+    <rect x="380" y="0" width="14" height="14" fill="#7c8aa3"></rect>
+    <text class="legend-text" x="402" y="12">Closed / proprietary</text>
+  </g>
+
+  <!-- Plot area: x=350-1010 (width=660), y=90-555 (height=465 for 9 bars) -->
+  <!-- X scale: 40% to 90% over 660px → 1% = 13.2px → x = 350 + (val-40)*13.2 -->
+
+  <!-- Grid lines + X axis ticks -->
+  <line class="grid" x1="350" y1="85" x2="350" y2="555"></line>
+  <line class="grid" x1="482" y1="85" x2="482" y2="555"></line>
+  <line class="grid" x1="614" y1="85" x2="614" y2="555"></line>
+  <line class="grid" x1="746" y1="85" x2="746" y2="555"></line>
+  <line class="grid" x1="878" y1="85" x2="878" y2="555"></line>
+  <line class="grid" x1="1010" y1="85" x2="1010" y2="555"></line>
+
+  <text class="axis-tick" x="350" y="575" text-anchor="middle">40%</text>
+  <text class="axis-tick" x="482" y="575" text-anchor="middle">50%</text>
+  <text class="axis-tick" x="614" y="575" text-anchor="middle">60%</text>
+  <text class="axis-tick" x="746" y="575" text-anchor="middle">70%</text>
+  <text class="axis-tick" x="878" y="575" text-anchor="middle">80%</text>
+  <text class="axis-tick" x="1010" y="575" text-anchor="middle">90%</text>
+
+  <text class="axis-tick" x="680" y="600" text-anchor="middle" style="font-weight:600;">CTI-RCM strict accuracy</text>
+
+  <line stroke="#18202f" stroke-width="1.5" x1="350" y1="555" x2="1010" y2="555"></line>
+
+  <!-- GPT-4 reference line at 72.0%: x = 350 + 32*13.2 = 350 + 422.4 = 772 -->
+  <line class="gpt4-baseline-line" x1="772" y1="80" x2="772" y2="555"></line>
+  <text class="baseline-label" x="777" y="76">GPT-4 baseline</text>
+
+  <!-- ============ BARS (top to bottom by score, highest first) ============ -->
+  <!-- Bar format:
+       - method name + sub on left (x ≤ 340)
+       - bar from x=350 to x=(350 + (val-40)*13.2)
+       - value label to right of bar
+  -->
+
+  <!-- 1. Sec-Gemini v1 (Google): ~86% -->
+  <rect x="350" y="95" width="607.2" height="36" fill="#7c8aa3"></rect>
+  <text class="method-name" x="340" y="111" text-anchor="end">Sec-Gemini v1 (Google)</text>
+  <text class="method-sub" x="340" y="126" text-anchor="end">closed / security-tuned</text>
+  <text class="bar-value" x="965" y="119">~86%</text>
+
+  <!-- 2. Ours: 85.1% -->
+  <rect x="350" y="143" width="595.3" height="42" fill="#047857" stroke="#ffd24d" stroke-width="2.5"></rect>
+  <text class="method-name" x="340" y="161" text-anchor="end" style="font-weight:800;">Ours (locked recipe)</text>
+  <text class="method-sub" x="340" y="177" text-anchor="end" style="font-weight:700;">7B open · local RAG over public NVD/MITRE</text>
+  <text class="bar-value-ours" x="955" y="171">85.1%</text>
+
+  <!-- 3. SecLM (Google): ~85% -->
+  <rect x="350" y="197" width="594" height="36" fill="#7c8aa3"></rect>
+  <text class="method-name" x="340" y="213" text-anchor="end">SecLM (Google)</text>
+  <text class="method-sub" x="340" y="228" text-anchor="end">closed / security-tuned</text>
+  <text class="bar-value" x="952" y="221">~85%</text>
+
+  <!-- 4. RoBERTa-base CVE→CWE: 75.6% (open, 125M fine-tuned) -->
+  <rect x="350" y="245" width="469.9" height="36" fill="#2d6cdf"></rect>
+  <text class="method-name" x="340" y="261" text-anchor="end">RoBERTa-base CVE→CWE</text>
+  <text class="method-sub" x="340" y="276" text-anchor="end">125M open · fine-tuned on 234k CVE→CWE pairs</text>
+  <text class="bar-value" x="827" y="269">75.6%</text>
+
+  <!-- 5. Foundation-Sec-8B-R (Cisco): 75.3% -->
+  <rect x="350" y="293" width="465.96" height="36" fill="#2d6cdf"></rect>
+  <text class="method-name" x="340" y="309" text-anchor="end">Foundation-Sec-8B-R (Cisco)</text>
+  <text class="method-sub" x="340" y="324" text-anchor="end">8B open · security fine-tune</text>
+  <text class="bar-value" x="823" y="317">75.3%</text>
+
+  <!-- 6. GPT-4: 72.0% -->
+  <rect x="350" y="341" width="422.4" height="36" fill="#7c8aa3"></rect>
+  <text class="method-name" x="340" y="357" text-anchor="end">GPT-4</text>
+  <text class="method-sub" x="340" y="372" text-anchor="end">closed / proprietary</text>
+  <text class="bar-value" x="780" y="365">72.0%</text>
+
+  <!-- 7. Foundation-Sec-8B (Cisco): 72.0% -->
+  <rect x="350" y="389" width="422.4" height="36" fill="#2d6cdf"></rect>
+  <text class="method-name" x="340" y="405" text-anchor="end">Foundation-Sec-8B (Cisco)</text>
+  <text class="method-sub" x="340" y="420" text-anchor="end">8B open · security pretrain</text>
+  <text class="bar-value" x="780" y="413">72.0%</text>
+
+  <!-- 8. WhiteRabbitNeo-V2-70B: 71.1% -->
+  <rect x="350" y="437" width="410.52" height="36" fill="#2d6cdf"></rect>
+  <text class="method-name" x="340" y="453" text-anchor="end">WhiteRabbitNeo-V2-70B</text>
+  <text class="method-sub" x="340" y="468" text-anchor="end">70B open · security tune</text>
+  <text class="bar-value" x="768" y="461">71.1%</text>
+
+  <!-- 9. GPT-3.5: 67.2% -->
+  <rect x="350" y="485" width="359.04" height="36" fill="#7c8aa3"></rect>
+  <text class="method-name" x="340" y="501" text-anchor="end">GPT-3.5</text>
+  <text class="method-sub" x="340" y="516" text-anchor="end">closed / proprietary</text>
+  <text class="bar-value" x="717" y="509">67.2%</text>
+
+
+  <!-- Key result callout -->
+  <text x="550" y="630" text-anchor="middle" fill="#047857" style="font-size:13px;font-weight:700;">
+    Our 85.1% is statistically tied with Google's best closed security models and 13.1 pp above GPT-4.
+  </text>
+
+  <!-- Caption -->
+  <text x="550" y="655" text-anchor="middle" fill="#5c667a" style="font-size:11px;">
+    Open-source models in blue · closed/proprietary in gray · ours in emerald with gold border.
+  </text>
+  <text x="550" y="675" text-anchor="middle" fill="#5c667a" style="font-size:11px;">
+    Sec-Gemini, SecLM scores self-reported by Google. RoBERTa, Foundation-Sec, WhiteRabbitNeo, GPT-* scores from arXiv:2603.14911 (2026). Ours measured on the 1000-query CTI-RCM-2024 split.
+  </text>
+  <text x="550" y="695" text-anchor="middle" fill="#5c667a" style="font-size:11px;">
+    Models below 67.2% (Gemini 1.5, LLaMA3-70B, Llama-Primus-Base, Foundation-Sec-8B-I, LLaMA3-8B) omitted for readability; see referenced sources.
+  </text>
+</svg>
+</body></html>

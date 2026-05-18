@@ -42,8 +42,8 @@ _EMB_CACHE_SUFFIX = "_t-raft" if EMBEDDER != "BAAI/bge-small-en-v1.5" else ""
 EMB_CACHE    = (Path(f"data/processed/chunk_embs_augmented{_EMB_CACHE_SUFFIX}.npy")
                 if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_EMB_CACHE_SUFFIX}.npy"))
 KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
-KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.75"))
-KNN_CONFIDENCE_MARGIN = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_MARGIN", "1.25"))
+KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.90"))
+KNN_CONFIDENCE_MARGIN = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_MARGIN", "1.50"))
 CWE_KEYWORD_ANCHORS_ENABLED = os.environ.get("CTI_RAG_CWE_KEYWORD_ANCHORS", "0") == "1"
 CWE_HIERARCHY_EXPANSION_ENABLED = os.environ.get("CTI_RAG_CWE_HIERARCHY_EXPANSION", "0") == "1"
 CWE_SELECTOR_ENABLED = os.environ.get("CTI_RAG_CWE_SELECTOR", "0") == "1"
