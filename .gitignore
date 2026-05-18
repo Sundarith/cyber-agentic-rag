@@ -22,11 +22,21 @@ CLAUDE.md
 DECISIONS.md
 HANDOFF.md
 PLAN.md
+RESEARCH.md
 docs/
 
 # Local eval/debug outputs
 eval_*.log
 eval_*_debug.jsonl
+
+# Long-running training artifacts and caches
+data/processed/chunk_embs_*.npy
+data/processed/t_raft_*.jsonl*
+data/models/
+logs/
+unsloth_compiled_cache/
+checkpoints/
+.claude/
 
 # OS
 .DS_Store

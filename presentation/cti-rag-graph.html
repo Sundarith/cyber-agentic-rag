@@ -62,6 +62,30 @@
       font-size: 14px;
     }
 
+    .report-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--ink);
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: opacity 0.15s ease;
+    }
+
+    .report-link:hover {
+      opacity: 0.85;
+    }
+
+    .report-link::before {
+      content: "📄";
+      font-size: 14px;
+    }
+
     .tabs {
       display: flex;
       flex-wrap: wrap;
@@ -488,6 +512,7 @@
       <div>
         <h1>CTI-RAG Graph Walkthrough</h1>
         <div class="subtitle">How the system crosses ATT&CK, CAPEC, CWE, CVE, and mitigations without relying on model memory.</div>
+        <a class="report-link" href="cti_rag_final_report_2026-05-17.pdf" target="_blank" rel="noopener">Final Report (PDF)</a>
       </div>
       <nav class="tabs" aria-label="Presentation views">
         <button class="active" data-slide="pipeline">Pipeline</button>
@@ -506,90 +531,124 @@
         <article class="slide active" id="pipeline">
           <div class="slide-title">
             <div>
-              <h2>Retrieval builds the path before the LLM answers</h2>
-              <p>Hybrid search finds candidate evidence, entity and bridge logic adds the missing cross-domain hops, then the model reads a grounded context.</p>
+              <h2>Five-stage retrieval grounds the LLM in public CTI data</h2>
+              <p>Hybrid search finds candidates, authoritative bridges inject known mappings, the rerank stack discriminates sibling CWEs, then a single LLM call reads the assembled evidence. Locked recipe: 851/1000 = 85.1% on CTI-Bench RCM.</p>
             </div>
           </div>
           <div class="viz">
             <svg viewBox="0 0 1160 520" role="img" aria-label="CTI-RAG retrieval pipeline graph">
               <defs>
-                <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto">
+                <marker id="arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="10" markerHeight="10" orient="auto">
                   <path d="M 2 2 L 10 6 L 2 10 z" fill="#263238"></path>
+                </marker>
+                <marker id="arrow-soft" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+                  <path d="M 2 2 L 10 6 L 2 10 z" fill="#7c8aa3"></path>
                 </marker>
               </defs>
 
-              <path class="edge" d="M160 120 C220 120 232 120 292 120"></path>
-              <path class="edge" d="M448 120 C500 120 512 120 564 120"></path>
-              <path class="edge" d="M720 120 C772 120 784 120 836 120"></path>
-              <path class="edge" d="M584 216 C520 266 454 296 380 312"></path>
-              <path class="edge" d="M632 216 C650 266 704 306 792 328"></path>
-              <path class="edge" d="M896 216 C896 266 896 288 896 338"></path>
-              <path class="edge" d="M948 120 C994 120 1006 120 1052 120"></path>
+              <!-- Pipeline flow arrows (top row, left to right) -->
+              <path class="edge" marker-end="url(#arrow)" d="M150 116 L186 116"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M346 116 L386 116"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M546 116 L586 116"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M766 116 L806 116"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M926 116 L966 116"></path>
 
-              <g class="node" transform="translate(32 84)">
-                <rect width="128" height="72"></rect>
-                <text x="18" y="30">User query</text>
-                <text class="kind" x="18" y="52">analyst intent</text>
+              <!-- Data source feeds (bottom row, up into top row) -->
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M276 322 C276 252 266 200 266 178"></path>
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M476 322 C476 252 466 200 466 178"></path>
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M826 322 C826 252 686 196 626 178"></path>
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M886 322 C886 252 826 196 686 178"></path>
+
+              <!-- STAGE 1: CVE prompt -->
+              <g class="node" transform="translate(30 80)">
+                <rect width="120" height="76"></rect>
+                <text x="14" y="30">CVE prompt</text>
+                <text class="kind" x="14" y="52">CTI-Bench</text>
+                <text class="kind" x="14" y="68">RCM row</text>
               </g>
 
-              <g class="node attack" transform="translate(292 74)">
-                <rect width="156" height="92"></rect>
-                <text x="18" y="30">Hybrid retrieval</text>
-                <text class="kind" x="18" y="52">BM25 + embeddings</text>
-                <text class="kind" x="18" y="70">336k chunks</text>
+              <!-- STAGE 2: Hybrid retrieval -->
+              <g class="node attack" transform="translate(186 70)">
+                <rect width="160" height="96"></rect>
+                <text x="14" y="28">Hybrid retrieval</text>
+                <text class="kind" x="14" y="50">BM25 + BGE-small</text>
+                <text class="kind" x="14" y="68">336k chunks</text>
+                <text class="kind" x="14" y="86">top-8 candidates</text>
               </g>
 
-              <g class="node group" transform="translate(564 74)">
-                <rect width="156" height="92"></rect>
-                <text x="18" y="30">Entity bridge</text>
-                <text class="kind" x="18" y="52">groups, malware</text>
-                <text class="kind" x="18" y="70">tools, campaigns</text>
+              <!-- STAGE 3: Bridge injection -->
+              <g class="node group" transform="translate(386 70)">
+                <rect width="160" height="96"></rect>
+                <text x="14" y="28">Bridge injection</text>
+                <text class="kind" x="14" y="50">NVD cwe_ids</text>
+                <text class="kind" x="14" y="68">(mapped path)</text>
+                <text class="kind" x="14" y="86">k-NN θ=0.90 m=1.5</text>
               </g>
 
-              <g class="node capec" transform="translate(836 74)">
-                <rect width="156" height="92"></rect>
-                <text x="18" y="30">Graph expansion</text>
-                <text class="kind" x="18" y="52">1-hop / 2-hop</text>
-                <text class="kind" x="18" y="70">Deep Search</text>
+              <!-- STAGE 4: CWE rerank stack -->
+              <g class="node capec" transform="translate(586 70)">
+                <rect width="180" height="96"></rect>
+                <text x="14" y="28">CWE rerank stack</text>
+                <text class="kind" x="14" y="50">phrase selector</text>
+                <text class="kind" x="14" y="68">cross-encoder (278M)</text>
+                <text class="kind" x="14" y="86">HyDE + CE filter (≥0.3)</text>
               </g>
 
-              <g class="node" transform="translate(1052 84)">
-                <rect width="88" height="72"></rect>
-                <text x="16" y="30">LLM</text>
-                <text class="kind" x="16" y="52">Qwen 7B</text>
+              <!-- STAGE 5: LLM -->
+              <g class="node cve" transform="translate(806 80)">
+                <rect width="120" height="76"></rect>
+                <text x="14" y="30">LLM</text>
+                <text class="kind" x="14" y="52">Qwen 2.5-7B</text>
+                <text class="kind" x="14" y="68">vLLM, FP16</text>
               </g>
 
-              <g class="node attack" transform="translate(214 300)">
-                <rect width="190" height="86"></rect>
-                <text x="18" y="29">ATT&CK</text>
-                <text class="kind" x="18" y="52">groups, software</text>
-                <text class="kind" x="18" y="68">techniques, mitigations</text>
+              <!-- RESULT callout -->
+              <g class="node" transform="translate(966 70)" style="--node-fill:#1c2538;--node-text:#fff;">
+                <rect width="170" height="96" fill="#1c2538" stroke="#1c2538"></rect>
+                <text x="14" y="34" fill="#fff" style="font-size:22px;font-weight:760;">851 / 1000</text>
+                <text x="14" y="58" fill="#fff" style="font-size:14px;font-weight:600;">85.1% strict</text>
+                <text x="14" y="78" fill="#9ab3ff" style="font-size:11px;">+13 vs GPT-4 (CTI-Bench)</text>
+                <text x="14" y="92" fill="#9ab3ff" style="font-size:11px;">+8 vs phrase-only baseline</text>
               </g>
 
-              <g class="node capec" transform="translate(514 300)">
-                <rect width="190" height="86"></rect>
-                <text x="18" y="29">CAPEC bridge</text>
-                <text class="kind" x="18" y="52">Technique -> CAPEC</text>
-                <text class="kind" x="18" y="68">CAPEC -> CWE</text>
+              <!-- Bottom row: data sources -->
+              <g class="node attack" transform="translate(186 322)">
+                <rect width="180" height="86"></rect>
+                <text x="14" y="29">MITRE ATT&CK</text>
+                <text class="kind" x="14" y="52">groups, software</text>
+                <text class="kind" x="14" y="68">techniques, mitigations</text>
               </g>
 
-              <g class="node cve" transform="translate(774 300)">
-                <rect width="244" height="86"></rect>
-                <text x="18" y="29">NVD CVE bridge</text>
-                <text class="kind" x="18" y="52">description match -> cwe_ids</text>
-                <text class="kind" x="18" y="68">unmapped -> k-NN CWE vote</text>
+              <g class="node capec" transform="translate(386 322)">
+                <rect width="180" height="86"></rect>
+                <text x="14" y="29">CAPEC + CWE</text>
+                <text class="kind" x="14" y="52">Tech→CAPEC→CWE</text>
+                <text class="kind" x="14" y="68">official alternate_terms</text>
               </g>
 
-              <text class="edge-label" x="218" y="107">retrieve</text>
-              <text class="edge-label" x="486" y="107">boost</text>
-              <text class="edge-label" x="760" y="107">expand</text>
-              <text class="edge-label" x="1000" y="107">answer</text>
+              <g class="node cve" transform="translate(736 322)">
+                <rect width="240" height="86"></rect>
+                <text x="14" y="29">NVD CVE database</text>
+                <text class="kind" x="14" y="52">150k mapped (CNA + ADP)</text>
+                <text class="kind" x="14" y="68">180k unmapped → k-NN target</text>
+              </g>
+
+              <!-- Edge labels on pipeline arrows -->
+              <text class="edge-label" x="155" y="104">→</text>
+              <text class="edge-label" x="350" y="104">retrieve</text>
+              <text class="edge-label" x="550" y="104">inject</text>
+              <text class="edge-label" x="770" y="104">rerank</text>
+              <text class="edge-label" x="930" y="104">answer</text>
+
+              <!-- Section labels -->
+              <text x="30" y="44" style="font-size:12px;font-weight:700;fill:#5c667a;letter-spacing:1px;">INFERENCE PIPELINE (per query)</text>
+              <text x="30" y="298" style="font-size:12px;font-weight:700;fill:#5c667a;letter-spacing:1px;">DATA SOURCES (indexed once at startup)</text>
             </svg>
           </div>
           <div class="footer">
-            <div class="note"><strong>Why graph logic matters</strong>Semantic top-k alone can stop at the first domain. The graph and bridges force the chain across datasets.</div>
-            <div class="note"><strong>Why bridge injection matters</strong>CAPEC and CWE IDs share numbers. Explicit mappings beat false-positive semantic matches.</div>
-            <div class="note"><strong>Why the LLM still helps</strong>Once evidence is assembled, the model explains and formats the answer instead of inventing the path.</div>
+            <div class="note"><strong>Why hybrid retrieval</strong>BM25 catches exact CVE/CWE IDs; BGE embeddings catch paraphrases. Equal weighting beats either alone.</div>
+            <div class="note"><strong>Why bridge injection</strong>NVD already assigns CWEs to 150k CVEs. Direct injection beats semantic guessing when ground truth exists.</div>
+            <div class="note"><strong>Why the rerank stack</strong>Sibling CWEs (CWE-77 vs 78, 125 vs 787) share vocabulary. Cross-encoder discrimination + HyDE expansion catches the near-misses.</div>
           </div>
         </article>
 

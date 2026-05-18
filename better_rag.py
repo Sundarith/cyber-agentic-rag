@@ -31,13 +31,16 @@ CAPEC_CWE_RELS = Path("data/processed/capec_cwe_relations.json")
 CWE_PHRASE_INDEX = Path("data/processed/cwe_phrase_index.json")
 LLM_ENDPOINT = "http://localhost:8000/v1/chat/completions"   # vLLM OpenAI-compatible API
 MODEL        = "Qwen/Qwen2.5-7B-Instruct"
-EMBEDDER     = "BAAI/bge-small-en-v1.5"
+EMBEDDER     = os.environ.get("CTI_RAG_EMBEDDER_PATH", "BAAI/bge-small-en-v1.5")
 BM25_K1      = 1.5
 BM25_B       = 0.75
 HYBRID_ALPHA = 0.5   # 0 = pure BM25, 1 = pure embedding
 TOP_K        = 8
-EMB_CACHE    = (Path("data/processed/chunk_embs_augmented.npy")
-                if _CWE_AUGMENTED_ENV else Path("data/processed/chunk_embs.npy"))
+# Cache path picks a variant suffix when a fine-tuned embedder is in use so its
+# vectors do not collide with the base BGE cache.
+_EMB_CACHE_SUFFIX = "_t-raft" if EMBEDDER != "BAAI/bge-small-en-v1.5" else ""
+EMB_CACHE    = (Path(f"data/processed/chunk_embs_augmented{_EMB_CACHE_SUFFIX}.npy")
+                if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_EMB_CACHE_SUFFIX}.npy"))
 KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
 KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.75"))
 KNN_CONFIDENCE_MARGIN = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_MARGIN", "1.25"))
