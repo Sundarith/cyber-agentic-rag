@@ -29,9 +29,45 @@ RELATIONS     = Path("data/processed/entity_relations.json")
 CAPEC_RELS    = Path("data/processed/capec_attack_relations.json")
 CAPEC_CWE_RELS = Path("data/processed/capec_cwe_relations.json")
 CWE_PHRASE_INDEX = Path("data/processed/cwe_phrase_index.json")
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
 LLM_ENDPOINT = "http://localhost:8000/v1/chat/completions"   # vLLM OpenAI-compatible API
 MODEL        = "Qwen/Qwen2.5-7B-Instruct"
+LLM_ROUTER_ENABLED = _env_bool("CTI_RAG_LLM_ROUTER", False)
+LLM_MAPPED_ENDPOINT = os.environ.get("CTI_RAG_LLM_MAPPED_ENDPOINT", "http://localhost:8001/v1/chat/completions")
+LLM_UNMAPPED_ENDPOINT = os.environ.get("CTI_RAG_LLM_UNMAPPED_ENDPOINT", LLM_ENDPOINT)
+LLM_HYDE_ENDPOINT = os.environ.get("CTI_RAG_LLM_HYDE_ENDPOINT", LLM_UNMAPPED_ENDPOINT if LLM_ROUTER_ENABLED else LLM_ENDPOINT)
+LLM_MAPPED_MODEL = os.environ.get("CTI_RAG_LLM_MAPPED_MODEL", MODEL)
+LLM_UNMAPPED_MODEL = os.environ.get("CTI_RAG_LLM_UNMAPPED_MODEL", MODEL)
+LLM_HYDE_MODEL = os.environ.get("CTI_RAG_LLM_HYDE_MODEL", LLM_UNMAPPED_MODEL if LLM_ROUTER_ENABLED else MODEL)
+LLM_MAX_MODEL_LEN = int(os.environ.get("CTI_RAG_LLM_MAX_MODEL_LEN", "32768"))
+LLM_RESPONSE_BUDGET = 256   # must match max_tokens passed to vLLM
+LLM_SAFETY_MARGIN = 384     # chat template + system tokens + buffer
+# Conservative 3.0 chars-per-token for Qwen on English+code; gives ~27k token
+# headroom under the 32k context window. Truncation fires only on outlier prompts.
+LLM_MAX_PROMPT_CHARS = int(os.environ.get(
+    "CTI_RAG_LLM_MAX_PROMPT_CHARS",
+    str(int((LLM_MAX_MODEL_LEN - LLM_RESPONSE_BUDGET - LLM_SAFETY_MARGIN) * 3.0)),
+))
 EMBEDDER     = os.environ.get("CTI_RAG_EMBEDDER_PATH", "BAAI/bge-small-en-v1.5")
+EMBEDDER_DEVICE = os.environ.get("CTI_RAG_EMBEDDER_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
+EMBEDDER_SECOND_DEVICE = os.environ.get("CTI_RAG_EMBEDDER_SECOND_DEVICE", "cuda:1")
+# Qwen3 emits <think>...</think> reasoning preambles by default; appending
+# `/no_think` to the user message turns that off. Harmless on Qwen2.5 (it
+# treats the suffix as inert text). Set CTI_RAG_LLM_NO_THINK=1 when serving
+# Qwen3 or any other reasoning-mode-by-default model.
+LLM_NO_THINK = _env_bool("CTI_RAG_LLM_NO_THINK", False)
+LLM_MAPPED_NO_THINK = _env_bool("CTI_RAG_LLM_MAPPED_NO_THINK", LLM_NO_THINK)
+LLM_UNMAPPED_NO_THINK = _env_bool("CTI_RAG_LLM_UNMAPPED_NO_THINK", LLM_NO_THINK)
+LLM_HYDE_NO_THINK = _env_bool("CTI_RAG_LLM_HYDE_NO_THINK", LLM_UNMAPPED_NO_THINK if LLM_ROUTER_ENABLED else LLM_NO_THINK)
+LLM_HYDE_ROUTE_ENABLED = _env_bool("CTI_RAG_LLM_HYDE_ROUTE", False)  # when True, mapped CVEs use mapped endpoint for HyDE
 BM25_K1      = 1.5
 BM25_B       = 0.75
 HYBRID_ALPHA = 0.5   # 0 = pure BM25, 1 = pure embedding
@@ -398,13 +434,14 @@ _inv_idx_np: dict[str, tuple[np.ndarray, np.ndarray]] = {
 _thread_local = threading.local()
 
 print("Loading embedder...")
-embedder = SentenceTransformer(EMBEDDER, device="cuda" if torch.cuda.is_available() else "cpu")
-try:
-    _embedder_1 = SentenceTransformer(EMBEDDER, device="cuda:1")
-    print("  Second embedder on cuda:1 ready for parallel eval")
-except Exception as _e:
-    _embedder_1 = None
-    print(f"  cuda:1 not available ({_e}), parallel eval will share cuda:0")
+embedder = SentenceTransformer(EMBEDDER, device=EMBEDDER_DEVICE)
+_embedder_1 = None
+if EMBEDDER_SECOND_DEVICE.lower() not in {"", "none", "off", "0"} and EMBEDDER_SECOND_DEVICE != EMBEDDER_DEVICE:
+    try:
+        _embedder_1 = SentenceTransformer(EMBEDDER, device=EMBEDDER_SECOND_DEVICE)
+        print(f"  Second embedder on {EMBEDDER_SECOND_DEVICE} ready for parallel eval")
+    except Exception as _e:
+        print(f"  second embedder device {EMBEDDER_SECOND_DEVICE} unavailable ({_e}), parallel eval will share {EMBEDDER_DEVICE}")
 
 def _get_embedder() -> SentenceTransformer:
     return getattr(_thread_local, 'embedder', embedder)
@@ -625,13 +662,55 @@ def _history_str(history: list) -> str:
     return out
 
 
-def _llm(prompt: str) -> str:
+def _truncate_prompt(prompt: str) -> str:
+    """Cap prompt at LLM_MAX_PROMPT_CHARS by eliding the middle of context.
+
+    Preserves the rules header AND the QUESTION:/ANSWER: tail intact; drops a
+    chunk from the middle of the context section and replaces it with a marker.
+    No-op for normal-sized prompts (the common case).
+    """
+    if len(prompt) <= LLM_MAX_PROMPT_CHARS:
+        return prompt
+    q_idx = prompt.rfind("\n\nQUESTION:")
+    if q_idx == -1:
+        q_idx = prompt.rfind("QUESTION:")
+    if q_idx == -1:
+        return prompt[:LLM_MAX_PROMPT_CHARS]
+    tail = prompt[q_idx:]
+    head_budget = LLM_MAX_PROMPT_CHARS - len(tail) - 200
+    if head_budget < 1000:
+        return prompt[:LLM_MAX_PROMPT_CHARS]
+    head = prompt[:head_budget]
+    dropped = len(prompt) - head_budget - len(tail)
+    marker = (
+        f"\n\n[... ~{dropped} chars of retrieval context truncated to fit "
+        f"the model context window ...]\n\n"
+    )
+    return head + marker + tail
+
+
+def _llm_config(route: str | None = None) -> tuple[str, str, bool, str]:
+    if LLM_ROUTER_ENABLED:
+        if route == "mapped":
+            return LLM_MAPPED_ENDPOINT, LLM_MAPPED_MODEL, LLM_MAPPED_NO_THINK, "mapped"
+        if route == "unmapped":
+            return LLM_UNMAPPED_ENDPOINT, LLM_UNMAPPED_MODEL, LLM_UNMAPPED_NO_THINK, "unmapped"
+        if route == "hyde":
+            return LLM_HYDE_ENDPOINT, LLM_HYDE_MODEL, LLM_HYDE_NO_THINK, "hyde"
+    return LLM_ENDPOINT, MODEL, LLM_NO_THINK, route or "default"
+
+
+def _llm(prompt: str, route: str | None = None) -> str:
+    prompt = _truncate_prompt(prompt)
+    endpoint, model, no_think, route_label = _llm_config(route)
+    if no_think:
+        prompt = prompt + "\n/no_think"
     try:
-        r = requests.post(LLM_ENDPOINT, json={
-            "model": MODEL,
+        r = requests.post(endpoint, json={
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
-            "max_tokens": 256,
+            "max_tokens": LLM_RESPONSE_BUDGET,
             "stream": False,
         })
         r.raise_for_status()
@@ -641,13 +720,13 @@ def _llm(prompt: str) -> str:
             return "Error: vLLM returned an unexpected response."
         return data["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"vLLM Connection Error: {e}")
+        print(f"vLLM Connection Error ({route_label}, {endpoint}): {e}")
         if 'r' in locals():
             print(f"Status Code: {r.status_code}, Body: {r.text}")
         return "Error: Could not connect to vLLM."
 
 
-def _hyde_hypothesis(query: str) -> str:
+def _hyde_hypothesis(query: str, route_hint: str | None = None) -> str:
     """Generate a short CWE-style weakness description for retrieval purposes.
 
     The hypothetical text is used to embed and retrieve additional CWE
@@ -666,19 +745,24 @@ def _hyde_hypothesis(query: str) -> str:
         f"CVE Description: {query}\n\n"
         "Weakness description:"
     )
-    return _llm(prompt)
+    hyde_route = ("mapped" if LLM_HYDE_ROUTE_ENABLED and route_hint == "mapped" else "hyde")
+    return _llm(prompt, route=hyde_route)
 
 
-def _llm_samples(prompt: str, n: int, temperature: float) -> list[str]:
+def _llm_samples(prompt: str, n: int, temperature: float, route: str | None = None) -> list[str]:
     """Request N completions in one vLLM request (continuous batching makes this
     near-free vs one request). Returns empty list on error so callers can fall
     back to the deterministic _llm path."""
+    prompt = _truncate_prompt(prompt)
+    endpoint, model, no_think, route_label = _llm_config(route)
+    if no_think:
+        prompt = prompt + "\n/no_think"
     try:
-        r = requests.post(LLM_ENDPOINT, json={
-            "model": MODEL,
+        r = requests.post(endpoint, json={
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
-            "max_tokens": 256,
+            "max_tokens": LLM_RESPONSE_BUDGET,
             "n": n,
             "stream": False,
         })
@@ -686,7 +770,7 @@ def _llm_samples(prompt: str, n: int, temperature: float) -> list[str]:
         data = r.json()
         return [c["message"]["content"] for c in data.get("choices", [])]
     except Exception as e:
-        print(f"vLLM Connection Error (samples): {e}")
+        print(f"vLLM Connection Error (samples, {route_label}, {endpoint}): {e}")
         return []
 
 
@@ -966,7 +1050,8 @@ def _select_cwe_rescue_candidates(
 
 
 
-def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict | None = None) -> tuple[str, list, str]:
+def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict | None = None,
+        llm_route_hint: str | None = None) -> tuple[str, list, str]:
     # Reverse entity lookup — fires when both a reverse-question pattern AND a known entity name appear.
     # Skip when 2+ entities detected — let retrieval + LLM handle comparison/relationship queries.
     # SKIP/BYPASS if query also asks for CWEs, detection, or mitigations (complex synthesis needed).
@@ -1036,7 +1121,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # The hypothesis is used for retrieval only; the final classification call
     # still sees the unchanged user prompt.
     if CWE_HYDE_ENABLED and len(_tokenize(question)) > CWE_HYDE_MIN_QUERY_TOKENS:
-        hyde_text = _hyde_hypothesis(question)
+        hyde_text = _hyde_hypothesis(question, route_hint=llm_route_hint)
         if hyde_text and not hyde_text.startswith("Error:"):
             hyde_retrieved = retrieve(hyde_text, k=CWE_HYDE_RETRIEVE_K)
             existing_ids = {(c.get("identifier") or "").upper() for c in retrieved_chunks}
@@ -1588,7 +1673,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             for c in retrieved_chunks
             if c.get("identifier", "").upper().startswith("CWE-")
         ]
-    
+
     eval_rule = (
         "10. Be concise: one justification sentence then the CWE ID on the last line. No more."
         if eval_mode else ""
@@ -1629,6 +1714,26 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             f"{menu_str}"
         )
 
+    llm_route = None
+    if llm_route_hint in {"mapped", "unmapped"}:
+        llm_route = llm_route_hint
+    elif is_cve_query:
+        if bridge_fired:
+            llm_route = "mapped"
+        elif ROOT_CAUSE_RE.search(question):
+            llm_route = "unmapped"
+    if debug_info is not None:
+        endpoint, model, no_think, route_label = _llm_config(llm_route)
+        debug_info["llm_route"] = {
+            "enabled": LLM_ROUTER_ENABLED,
+            "route": route_label,
+            "hint": llm_route_hint,
+            "endpoint": endpoint,
+            "model": model,
+            "no_think": no_think,
+            "bridge_fired": bridge_fired,
+        }
+
     prompt = f"""You are a Cyber Threat Intelligence expert. Answer the question based ONLY on the provided context.
 
 CRITICAL RULES:
@@ -1661,6 +1766,7 @@ ANSWER:"""
             and CWE_SELF_CONSISTENCY_N >= 2):
         samples = _llm_samples(
             prompt, CWE_SELF_CONSISTENCY_N, CWE_SELF_CONSISTENCY_TEMPERATURE,
+            route=llm_route,
         )
         cwe_picks: list[str | None] = []
         for s in samples:
@@ -1678,11 +1784,11 @@ ANSWER:"""
                 idx = next(i for i, c in enumerate(cwe_picks) if c == chosen_cwe)
                 answer = samples[idx]
             except StopIteration:
-                answer = samples[0] if samples else _llm(prompt)
+                answer = samples[0] if samples else _llm(prompt, route=llm_route)
         elif samples:
             answer = samples[0]
         else:
-            answer = _llm(prompt)
+            answer = _llm(prompt, route=llm_route)
         sc_debug = {
             "n": CWE_SELF_CONSISTENCY_N,
             "temperature": CWE_SELF_CONSISTENCY_TEMPERATURE,
@@ -1691,7 +1797,7 @@ ANSWER:"""
             "chosen": chosen_cwe,
         }
     else:
-        answer = _llm(prompt)
+        answer = _llm(prompt, route=llm_route)
     if debug_info is not None and sc_debug is not None:
         debug_info["self_consistency"] = sc_debug
     cwe_selection = _select_phrase_index_cwe(question, answer, retrieved_chunks)
