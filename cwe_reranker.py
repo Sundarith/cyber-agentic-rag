@@ -17,6 +17,11 @@ import threading
 CROSS_ENCODER_MODEL = os.environ.get("CTI_RAG_CWE_CROSSENCODER_MODEL", "BAAI/bge-reranker-base")
 CROSS_ENCODER_MAX_LENGTH = int(os.environ.get("CTI_RAG_CWE_CROSSENCODER_MAX_LENGTH", "512"))
 CROSS_ENCODER_TEXT_LIMIT = int(os.environ.get("CTI_RAG_CWE_CROSSENCODER_TEXT_LIMIT", "500"))
+CROSS_ENCODER_DEVICE = os.environ.get("CTI_RAG_CWE_CROSSENCODER_DEVICE", "")
+# Optional LoRA adapter applied on top of the base CE. If set, must point to a
+# directory containing adapter_model.safetensors + adapter_config.json (the
+# output of train_cwe_reranker.py).
+CROSS_ENCODER_ADAPTER = os.environ.get("CTI_RAG_CWE_CROSSENCODER_ADAPTER", "")
 
 _cross_encoder = None
 _init_lock = threading.Lock()
@@ -30,12 +35,15 @@ def _get_cross_encoder():
         if _cross_encoder is None:
             from sentence_transformers import CrossEncoder
             import torch
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = CROSS_ENCODER_DEVICE or ("cuda" if torch.cuda.is_available() else "cpu")
             _cross_encoder = CrossEncoder(
                 CROSS_ENCODER_MODEL,
                 max_length=CROSS_ENCODER_MAX_LENGTH,
                 device=device,
             )
+            if CROSS_ENCODER_ADAPTER:
+                print(f"[cwe_reranker] loading LoRA adapter from {CROSS_ENCODER_ADAPTER}")
+                _cross_encoder.load_adapter(CROSS_ENCODER_ADAPTER)
     return _cross_encoder
 
 

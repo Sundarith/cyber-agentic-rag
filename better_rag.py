@@ -38,6 +38,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.lower() in {"1", "true", "yes", "on"}
 
 
+RCM_ONLY = _env_bool("CTI_RAG_RCM_ONLY", False)
 LLM_ENDPOINT = "http://localhost:8000/v1/chat/completions"   # vLLM OpenAI-compatible API
 MODEL        = "Qwen/Qwen2.5-7B-Instruct"
 LLM_ROUTER_ENABLED = _env_bool("CTI_RAG_LLM_ROUTER", False)
@@ -49,6 +50,7 @@ LLM_UNMAPPED_MODEL = os.environ.get("CTI_RAG_LLM_UNMAPPED_MODEL", MODEL)
 LLM_HYDE_MODEL = os.environ.get("CTI_RAG_LLM_HYDE_MODEL", LLM_UNMAPPED_MODEL if LLM_ROUTER_ENABLED else MODEL)
 LLM_MAX_MODEL_LEN = int(os.environ.get("CTI_RAG_LLM_MAX_MODEL_LEN", "32768"))
 LLM_RESPONSE_BUDGET = 256   # must match max_tokens passed to vLLM
+LLM_HYDE_RESPONSE_BUDGET = int(os.environ.get("CTI_RAG_LLM_HYDE_RESPONSE_BUDGET", str(LLM_RESPONSE_BUDGET)))
 LLM_SAFETY_MARGIN = 384     # chat template + system tokens + buffer
 # Conservative 3.0 chars-per-token for Qwen on English+code; gives ~27k token
 # headroom under the 32k context window. Truncation fires only on outlier prompts.
@@ -75,6 +77,8 @@ TOP_K        = 8
 # Cache path picks a variant suffix when a fine-tuned embedder is in use so its
 # vectors do not collide with the base BGE cache.
 _EMB_CACHE_SUFFIX = "_t-raft" if EMBEDDER != "BAAI/bge-small-en-v1.5" else ""
+if RCM_ONLY:
+    _EMB_CACHE_SUFFIX += "_rcm-only"
 EMB_CACHE    = (Path(f"data/processed/chunk_embs_augmented{_EMB_CACHE_SUFFIX}.npy")
                 if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_EMB_CACHE_SUFFIX}.npy"))
 KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
@@ -100,6 +104,8 @@ CWE_HYDE_ENABLED = os.environ.get("CTI_RAG_CWE_HYDE", "0") == "1"
 CWE_HYDE_RETRIEVE_K = int(os.environ.get("CTI_RAG_CWE_HYDE_RETRIEVE_K", "15"))
 CWE_HYDE_INJECT_MAX = int(os.environ.get("CTI_RAG_CWE_HYDE_INJECT_MAX", "5"))
 CWE_HYDE_MIN_QUERY_TOKENS = int(os.environ.get("CTI_RAG_CWE_HYDE_MIN_QUERY_TOKENS", "15"))
+CWE_HYDE_SKIP_MAPPED_BRIDGE = os.environ.get("CTI_RAG_CWE_HYDE_SKIP_MAPPED_BRIDGE", "0") == "1"
+CWE_MAPPED_FAST_CONTEXT = os.environ.get("CTI_RAG_CWE_MAPPED_FAST_CONTEXT", "0") == "1"
 CWE_HYDE_CE_FILTER = os.environ.get("CTI_RAG_CWE_HYDE_CE_FILTER", "0") == "1"
 CWE_HYDE_CE_FILTER_THRESHOLD = float(os.environ.get("CTI_RAG_CWE_HYDE_CE_FILTER_THRESHOLD", "0.3"))
 CWE_RESCUE_ENABLED = os.environ.get("CTI_RAG_CWE_RESCUE", "0") == "1"
@@ -110,12 +116,36 @@ CWE_RESCUE_MIN_SCORE = float(os.environ.get("CTI_RAG_CWE_RESCUE_MIN_SCORE", "0.7
 CWE_RESCUE_MIN_LEXICAL_SCORE = float(os.environ.get("CTI_RAG_CWE_RESCUE_MIN_LEXICAL_SCORE", "4.0"))
 CWE_RESCUE_MIN_LEXICAL_TERMS = int(os.environ.get("CTI_RAG_CWE_RESCUE_MIN_LEXICAL_TERMS", "2"))
 PROFILE = "--profile" in sys.argv or os.environ.get("CTI_RAG_PROFILE", "0") == "1"
-CAPTURE_TIMING = PROFILE or os.environ.get("CTI_RAG_CAPTURE_TIMING", "0") == "1"
+TIMING_AUDIT = (
+    "--timing-audit" in sys.argv
+    or _env_bool("CTI_RAG_TIMING_AUDIT", False)
+    or _env_bool("CTI_RAG_LLM_TIMING", False)
+)
+CAPTURE_TIMING = PROFILE or TIMING_AUDIT or os.environ.get("CTI_RAG_CAPTURE_TIMING", "0") == "1"
+TIMING_RUN_ID = os.environ.get("CTI_RAG_TIMING_RUN_ID") or time.strftime("%Y%m%d_%H%M%S")
+LLM_TIMING_LOG_PATH = Path(os.environ.get(
+    "CTI_RAG_LLM_TIMING_LOG",
+    f"logs/llm_timing_{TIMING_RUN_ID}_pid{os.getpid()}.jsonl",
+))
+_llm_timing_lock = threading.Lock()
 
 
 def _profile_print(*args, **kwargs) -> None:
     if PROFILE:
         print(*args, **kwargs)
+
+
+def _record_llm_timing(record: dict) -> None:
+    """Attach request timing to the current query and optionally write JSONL."""
+    calls = getattr(_thread_local, "llm_calls", None)
+    if calls is not None:
+        calls.append(record)
+    if not TIMING_AUDIT:
+        return
+    LLM_TIMING_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _llm_timing_lock:
+        with LLM_TIMING_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, sort_keys=True) + "\n")
 
 # High-precision CVE-description phrases. These are soft hints: they inject matching
 # CWE chunks, but do not strip competing evidence the way bridge mappings do.
@@ -151,14 +181,18 @@ CWE_SELECTOR_RULES: tuple[tuple[str, re.Pattern, str], ...] = (
 # ── data loading ──────────────────────────────────────────────────────────────
 
 print("Loading chunks...")
-chunks = [json.loads(line) for line in ATTACK_CHUNKS.open()]
-if CAPEC_CHUNKS.exists():
+chunks = []
+if not RCM_ONLY and ATTACK_CHUNKS.exists():
+    chunks += [json.loads(line) for line in ATTACK_CHUNKS.open()]
+if not RCM_ONLY and CAPEC_CHUNKS.exists():
     chunks += [json.loads(line) for line in CAPEC_CHUNKS.open()]
 if CWE_CHUNKS.exists():
     chunks += [json.loads(line) for line in CWE_CHUNKS.open()]
 if CVE_CHUNKS.exists():
     chunks += [json.loads(line) for line in CVE_CHUNKS.open()]
 print(f"  {len(chunks)} chunks loaded")
+if RCM_ONLY:
+    print("  RCM-only mode: loaded CVE + CWE chunks; skipped ATT&CK + CAPEC")
 
 print("Building reverse indexes for groups / malware / tools / campaigns...")
 _OBS_RE      = re.compile(r'\n## Observed in the Wild\n(.+?)(?=\n## |\Z)', re.DOTALL)
@@ -202,7 +236,7 @@ group_to_tools:   dict[str, list] = {}
 malware_to_groups: dict[str, list] = {}
 tool_to_groups:    dict[str, list] = {}
 
-if RELATIONS.exists():
+if not RCM_ONLY and RELATIONS.exists():
     _rel = json.loads(RELATIONS.read_text())
     for g, d in _rel.get("group_uses", {}).items():
         g_lower = g.lower()
@@ -250,7 +284,7 @@ print(f"  Indexed {alias_count} entity aliases")
 
 capec_to_attack: dict[str, list] = defaultdict(list)
 attack_to_capec: dict[str, list] = {}
-if CAPEC_RELS.exists():
+if not RCM_ONLY and CAPEC_RELS.exists():
     _cr = json.loads(CAPEC_RELS.read_text())
     attack_to_capec = _cr.get("tech_to_capec", {})
     for tid, capec_ids in attack_to_capec.items():
@@ -258,7 +292,7 @@ if CAPEC_RELS.exists():
             capec_to_attack[cid].append(tid)
 
 capec_to_cwe: dict[str, list] = {}
-if CAPEC_CWE_RELS.exists():
+if not RCM_ONLY and CAPEC_CWE_RELS.exists():
     _cwr = json.loads(CAPEC_CWE_RELS.read_text())
     capec_to_cwe = _cwr.get("capec_to_cwe", {})
     print(f"  CAPEC→CWE bridge: {len(capec_to_cwe)} mappings loaded")
@@ -459,11 +493,30 @@ if EMB_CACHE.exists():
     else:
         print("  Loaded from cache.")
 else:
-    chunk_embs = embedder.encode(
-        [c["text"] for c in chunks], batch_size=512,
-        normalize_embeddings=True, show_progress_bar=True, convert_to_numpy=True,
-    )
-    np.save(EMB_CACHE, chunk_embs)
+    full_cache = (Path(f"data/processed/chunk_embs_augmented{_EMB_CACHE_SUFFIX.replace('_rcm-only', '')}.npy")
+                  if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_EMB_CACHE_SUFFIX.replace('_rcm-only', '')}.npy"))
+    if RCM_ONLY and full_cache.exists():
+        attack_n = sum(1 for _ in ATTACK_CHUNKS.open()) if ATTACK_CHUNKS.exists() else 0
+        capec_n = sum(1 for _ in CAPEC_CHUNKS.open()) if CAPEC_CHUNKS.exists() else 0
+        full_embs = np.load(full_cache, mmap_mode="r")
+        offset = attack_n + capec_n
+        if len(full_embs) >= offset + len(chunks):
+            chunk_embs = np.asarray(full_embs[offset:offset + len(chunks)])
+            np.save(EMB_CACHE, chunk_embs)
+            print(f"  Built RCM-only cache from full cache slice: {full_cache}")
+        else:
+            print(f"  Full cache {full_cache} has unexpected size. Rebuilding RCM-only embeddings...")
+            chunk_embs = embedder.encode(
+                [c["text"] for c in chunks], batch_size=512,
+                normalize_embeddings=True, show_progress_bar=True, convert_to_numpy=True,
+            )
+            np.save(EMB_CACHE, chunk_embs)
+    else:
+        chunk_embs = embedder.encode(
+            [c["text"] for c in chunks], batch_size=512,
+            normalize_embeddings=True, show_progress_bar=True, convert_to_numpy=True,
+        )
+        np.save(EMB_CACHE, chunk_embs)
 print(f"  Shape: {chunk_embs.shape}\n")
 
 # Pre-compute boolean masks for scoring — used in retrieve() as numpy array ops
@@ -700,30 +753,73 @@ def _llm_config(route: str | None = None) -> tuple[str, str, bool, str]:
     return LLM_ENDPOINT, MODEL, LLM_NO_THINK, route or "default"
 
 
-def _llm(prompt: str, route: str | None = None) -> str:
+def _llm(prompt: str, route: str | None = None, stage: str = "final",
+         max_tokens: int | None = None) -> str:
+    original_prompt_chars = len(prompt)
     prompt = _truncate_prompt(prompt)
+    truncated = len(prompt) < original_prompt_chars
     endpoint, model, no_think, route_label = _llm_config(route)
+    token_budget = max_tokens if max_tokens is not None else LLM_RESPONSE_BUDGET
     if no_think:
         prompt = prompt + "\n/no_think"
+    started = time.time()
+    status_code = None
+    answer = ""
+    error = ""
+    usage = {}
     try:
         r = requests.post(endpoint, json={
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
-            "max_tokens": LLM_RESPONSE_BUDGET,
+            "max_tokens": token_budget,
             "stream": False,
         })
+        status_code = r.status_code
         r.raise_for_status()
         data = r.json()
         if "choices" not in data or not data["choices"]:
             print(f"vLLM Error (no choices): {data}")
+            error = "no_choices"
             return "Error: vLLM returned an unexpected response."
-        return data["choices"][0]["message"]["content"]
+        usage = data.get("usage") or {}
+        answer = data["choices"][0]["message"]["content"]
+        return answer
     except Exception as e:
+        error = str(e)
         print(f"vLLM Connection Error ({route_label}, {endpoint}): {e}")
         if 'r' in locals():
             print(f"Status Code: {r.status_code}, Body: {r.text}")
         return "Error: Could not connect to vLLM."
+    finally:
+        finished = time.time()
+        _record_llm_timing({
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "run_id": TIMING_RUN_ID,
+            "query_id": getattr(_thread_local, "timing_query_id", None),
+            "thread_id": threading.get_ident(),
+            "stage": stage,
+            "route": route_label if "route_label" in locals() else route,
+            "endpoint": endpoint if "endpoint" in locals() else None,
+            "model": model if "model" in locals() else MODEL,
+            "no_think": bool(no_think) if "no_think" in locals() else False,
+            "max_tokens": token_budget,
+            "prompt_chars_original": original_prompt_chars,
+            "prompt_chars_sent": len(prompt),
+            "prompt_truncated": truncated,
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "response_chars": len(answer or ""),
+            "status_code": status_code,
+            "success": not error and bool(answer),
+            "error": error,
+            "duration_s": finished - started,
+            "tokens_per_s": (
+                float(usage.get("completion_tokens")) / (finished - started)
+                if usage.get("completion_tokens") and finished > started else None
+            ),
+        })
 
 
 def _hyde_hypothesis(query: str, route_hint: str | None = None) -> str:
@@ -746,17 +842,29 @@ def _hyde_hypothesis(query: str, route_hint: str | None = None) -> str:
         "Weakness description:"
     )
     hyde_route = ("mapped" if LLM_HYDE_ROUTE_ENABLED and route_hint == "mapped" else "hyde")
-    return _llm(prompt, route=hyde_route)
+    return _llm(
+        prompt,
+        route=hyde_route,
+        stage="hyde",
+        max_tokens=LLM_HYDE_RESPONSE_BUDGET,
+    )
 
 
 def _llm_samples(prompt: str, n: int, temperature: float, route: str | None = None) -> list[str]:
     """Request N completions in one vLLM request (continuous batching makes this
     near-free vs one request). Returns empty list on error so callers can fall
     back to the deterministic _llm path."""
+    original_prompt_chars = len(prompt)
     prompt = _truncate_prompt(prompt)
+    truncated = len(prompt) < original_prompt_chars
     endpoint, model, no_think, route_label = _llm_config(route)
     if no_think:
         prompt = prompt + "\n/no_think"
+    started = time.time()
+    status_code = None
+    responses: list[str] = []
+    error = ""
+    usage = {}
     try:
         r = requests.post(endpoint, json={
             "model": model,
@@ -766,12 +874,47 @@ def _llm_samples(prompt: str, n: int, temperature: float, route: str | None = No
             "n": n,
             "stream": False,
         })
+        status_code = r.status_code
         r.raise_for_status()
         data = r.json()
-        return [c["message"]["content"] for c in data.get("choices", [])]
+        usage = data.get("usage") or {}
+        responses = [c["message"]["content"] for c in data.get("choices", [])]
+        return responses
     except Exception as e:
+        error = str(e)
         print(f"vLLM Connection Error (samples, {route_label}, {endpoint}): {e}")
         return []
+    finally:
+        finished = time.time()
+        _record_llm_timing({
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "run_id": TIMING_RUN_ID,
+            "query_id": getattr(_thread_local, "timing_query_id", None),
+            "thread_id": threading.get_ident(),
+            "stage": "samples",
+            "route": route_label if "route_label" in locals() else route,
+            "endpoint": endpoint if "endpoint" in locals() else None,
+            "model": model if "model" in locals() else MODEL,
+            "no_think": bool(no_think) if "no_think" in locals() else False,
+            "max_tokens": LLM_RESPONSE_BUDGET,
+            "prompt_chars_original": original_prompt_chars,
+            "prompt_chars_sent": len(prompt),
+            "prompt_truncated": truncated,
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "response_chars": sum(len(r or "") for r in responses),
+            "status_code": status_code,
+            "success": not error and bool(responses),
+            "error": error,
+            "duration_s": finished - started,
+            "tokens_per_s": (
+                float(usage.get("completion_tokens")) / (finished - started)
+                if usage.get("completion_tokens") and finished > started else None
+            ),
+            "n": n,
+            "temperature": temperature,
+        })
 
 
 ENTITY_REVERSE_RE = re.compile(r'\b(what|which|list|show).{0,50}\b(techniques?|attacks?|tactics?|malwares?|software|tools?|groups?|actors?|do|does|use[sd]?|cause[sd]?)\b', re.IGNORECASE)
@@ -1052,6 +1195,12 @@ def _select_cwe_rescue_candidates(
 
 def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict | None = None,
         llm_route_hint: str | None = None) -> tuple[str, list, str]:
+    query_id = f"{threading.get_ident()}-{time.time_ns()}"
+    _thread_local.timing_query_id = query_id
+    _thread_local.llm_calls = [] if (debug_info is not None or TIMING_AUDIT) else None
+    if debug_info is not None:
+        debug_info["timing_query_id"] = query_id
+
     # Reverse entity lookup — fires when both a reverse-question pattern AND a known entity name appear.
     # Skip when 2+ entities detected — let retrieval + LLM handle comparison/relationship queries.
     # SKIP/BYPASS if query also asks for CWEs, detection, or mitigations (complex synthesis needed).
@@ -1102,6 +1251,12 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
 
     retrieved = retrieve(question)
     retrieved_chunks = [c for c, _ in retrieved]
+    initial_cve_with_cwes = next(
+        (c for c in retrieved_chunks if c.get("source") == "CVE" and c.get("cwe_ids")),
+        None,
+    )
+    if _t is not None:
+        _t["initial_retrieve"] = time.time()
     if debug_info is not None:
         debug_info["initial_retrieved"] = [
             {
@@ -1120,10 +1275,28 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # description, retrieve against it, and inject the top novel CWE candidates.
     # The hypothesis is used for retrieval only; the final classification call
     # still sees the unchanged user prompt.
-    if CWE_HYDE_ENABLED and len(_tokenize(question)) > CWE_HYDE_MIN_QUERY_TOKENS:
+    skip_hyde = (
+        CWE_HYDE_SKIP_MAPPED_BRIDGE
+        and llm_route_hint == "mapped"
+        and initial_cve_with_cwes is not None
+    )
+    if debug_info is not None and skip_hyde:
+        debug_info["hyde"] = {
+            "skipped": True,
+            "reason": "mapped_cve_bridge_available",
+            "cve_id": initial_cve_with_cwes.get("identifier"),
+            "cwe_ids": initial_cve_with_cwes.get("cwe_ids", []),
+        }
+    if CWE_HYDE_ENABLED and len(_tokenize(question)) > CWE_HYDE_MIN_QUERY_TOKENS and not skip_hyde:
+        if _t is not None:
+            _t["hyde_start"] = time.time()
         hyde_text = _hyde_hypothesis(question, route_hint=llm_route_hint)
+        if _t is not None:
+            _t["hyde_llm_done"] = time.time()
         if hyde_text and not hyde_text.startswith("Error:"):
             hyde_retrieved = retrieve(hyde_text, k=CWE_HYDE_RETRIEVE_K)
+            if _t is not None:
+                _t["hyde_retrieve_done"] = time.time()
             existing_ids = {(c.get("identifier") or "").upper() for c in retrieved_chunks}
             # First collect all novel CWE candidates from HyDE retrieval
             hyde_candidates: list[dict] = []
@@ -1170,6 +1343,8 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
                 added_ids = [c.get("identifier") for c in hyde_added]
                 tag = "HyDE+CEfilter" if CWE_HYDE_CE_FILTER else "HyDE"
                 print(f"[{tag} injected {len(added_ids)} CWE candidates: {added_ids}]\n")
+        if _t is not None:
+            _t["hyde_done"] = time.time()
 
     if _t is not None: _t["retrieve"] = time.time()
 
@@ -1238,6 +1413,28 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
 
     if _t is not None: _t["filters"] = time.time()
 
+    bridge_fired = False
+    mapped_fast_context = False
+    if (CWE_MAPPED_FAST_CONTEXT and not _cve_id_m and llm_route_hint == "mapped"
+            and initial_cve_with_cwes):
+        nvd_cwes = {cid.upper() for cid in initial_cve_with_cwes["cwe_ids"]}
+        fast_context = [initial_cve_with_cwes]
+        existing_ids = {initial_cve_with_cwes.get("identifier", "").upper()}
+        for cwe_id in sorted(nvd_cwes):
+            if cwe_id in id_to_chunk and cwe_id not in existing_ids:
+                fast_context.append(id_to_chunk[cwe_id])
+                existing_ids.add(cwe_id)
+        retrieved_chunks = fast_context
+        bridge_fired = True
+        mapped_fast_context = True
+        if debug_info is not None:
+            debug_info["cve_description_bridge"] = {
+                "cve_id": initial_cve_with_cwes.get("identifier"),
+                "cwe_ids": sorted(nvd_cwes),
+                "early": True,
+                "fast_context": True,
+            }
+
     # Universal Knowledge Graph Traversal
     # Determine depth: 2-hop for complex queries (Deep Search), 1-hop otherwise.
     is_deep = bool(ROOT_CAUSE_RE.search(question) or DETECTION_RE.search(question) or MITIGATION_RE.search(question) or CAPEC_RE.search(question))
@@ -1248,16 +1445,17 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
 
     # 1st Hop
     hop1_ids = set()
-    for c in retrieved_chunks:
-        cid = c.get("identifier", "").upper()
-        if cid in chunk_graph:
-            for neighbor in chunk_graph[cid]:
-                if neighbor not in added_ids:
-                    hop1_ids.add(neighbor)
+    if not mapped_fast_context:
+        for c in retrieved_chunks:
+            cid = c.get("identifier", "").upper()
+            if cid in chunk_graph:
+                for neighbor in chunk_graph[cid]:
+                    if neighbor not in added_ids:
+                        hop1_ids.add(neighbor)
     
     # 2nd Hop (Deep Search only)
     all_candidate_ids = set(hop1_ids)
-    if is_deep:
+    if is_deep and not mapped_fast_context:
         for nid in hop1_ids:
             if nid in chunk_graph:
                 for n2 in chunk_graph[nid]:
@@ -1333,8 +1531,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # CVE description bridge: if a CVE chunk made it into context (likely the matching
     # CVE for a description-style query), its NVD CWE assignments are authoritative.
     # Strip all other CWE chunks and inject the NVD CWEs. Same pattern as CAPEC→CWE bridge.
-    bridge_fired = False
-    if not _cve_id_m:
+    if not _cve_id_m and not bridge_fired:
         cve_with_cwes = next((c for c in retrieved_chunks
                               if c.get("source") == "CVE" and c.get("cwe_ids")), None)
         if cve_with_cwes:
@@ -1363,6 +1560,8 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # High-confidence votes (top CWE wins enough weighted signal) are treated as
     # authoritative — strip competing CWE chunks like the direct bridge does. Lower
     # confidence stays as a soft hint (inject without stripping).
+    if _t is not None:
+        _t["knn_start"] = time.time()
     if not bridge_fired and _mapped_cve_indices.size:
         q_emb_knn = _get_embedder().encode([question], normalize_embeddings=True, convert_to_numpy=True)[0]
         mapped_sims = chunk_embs[_mapped_cve_indices] @ q_emb_knn
@@ -1452,6 +1651,8 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
                     if neighbor_context_added:
                         msg += " (Context imputed)"
                     print(msg + "\n")
+    if _t is not None:
+        _t["knn_done"] = time.time()
 
     if CWE_KEYWORD_ANCHORS_ENABLED and not _cve_id_m and not bridge_fired:
         anchored_cwes = []
@@ -1554,6 +1755,8 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # Cross-encoder re-ranking of CWE chunks. Pure reordering, no stripping.
     # Skipped on authoritative paths (CVE description bridge, high-confidence k-NN),
     # since those decisions are factual lookups rather than retrieval guesses.
+    if _t is not None:
+        _t["cwe_ce_start"] = time.time()
     listwise_candidates: list[dict] = []
     ce_scored: list[tuple[dict, float]] = []
     if CWE_CROSSENCODER_ENABLED and not bridge_fired and not knn_high_confidence:
@@ -1646,6 +1849,9 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
                 if not eval_mode and listwise_candidates:
                     menu_summary = ", ".join(c["identifier"] for c in listwise_candidates)
                     print(f"[CWE listwise menu: {menu_summary}]\n")
+
+    if _t is not None:
+        _t["cwe_ce_done"] = time.time()
 
     hist = _history_str(history)
     
@@ -1871,23 +2077,46 @@ ANSWER:"""
 
     if _t is not None:
         _t["llm"] = time.time()
+        initial_retrieve_done = _t.get("initial_retrieve", _t["retrieve"])
+        hyde_start = _t.get("hyde_start")
+        hyde_llm_done = _t.get("hyde_llm_done", hyde_start)
+        hyde_retrieve_done = _t.get("hyde_retrieve_done", hyde_llm_done)
+        hyde_done = _t.get("hyde_done", hyde_retrieve_done)
+        knn_start = _t.get("knn_start")
+        knn_done = _t.get("knn_done", knn_start)
+        cwe_ce_start = _t.get("cwe_ce_start")
+        cwe_ce_done = _t.get("cwe_ce_done", cwe_ce_start)
         if debug_info is not None:
             debug_info["timing"] = {
+                "query_id": query_id,
                 "retrieve_s": _t["retrieve"] - _t["start"],
+                "initial_retrieve_s": initial_retrieve_done - _t["start"],
+                "hyde_total_s": (hyde_done - hyde_start) if hyde_start is not None else 0.0,
+                "hyde_llm_s": (hyde_llm_done - hyde_start) if hyde_start is not None and hyde_llm_done is not None else 0.0,
+                "hyde_retrieve_s": (hyde_retrieve_done - hyde_llm_done) if hyde_llm_done is not None and hyde_retrieve_done is not None else 0.0,
+                "hyde_filter_s": (hyde_done - hyde_retrieve_done) if hyde_retrieve_done is not None and hyde_done is not None else 0.0,
                 "filters_s": _t["filters"] - _t["retrieve"],
                 "graph_s": _t["graph"] - _t["filters"],
                 "candidate_count": _t["candidate_count"],
                 "neighbors_s": _t["neighbors"] - _t["graph"],
+                "knn_s": (knn_done - knn_start) if knn_start is not None and knn_done is not None else 0.0,
+                "cwe_crossencoder_s": (cwe_ce_done - cwe_ce_start) if cwe_ce_start is not None and cwe_ce_done is not None else 0.0,
+                "post_neighbors_s": _t["prompt_built"] - _t["neighbors"],
                 "prompt_s": _t["prompt_built"] - _t["neighbors"],
+                "prompt_build_s": _t["prompt_built"] - _t.get("cwe_ce_done", _t["neighbors"]),
                 "llm_s": _t["llm"] - _t["prompt_built"],
                 "total_s": _t["llm"] - _t["start"],
             }
+            debug_info["llm_calls"] = list(getattr(_thread_local, "llm_calls", []) or [])
         _profile_print(
             f"[T] retrieve={_t['retrieve']-_t['start']:.2f}s "
+            f"(initial={initial_retrieve_done-_t['start']:.2f}s hyde={((hyde_done-hyde_start) if hyde_start is not None else 0.0):.2f}s) "
             f"filters={_t['filters']-_t['retrieve']:.2f}s "
             f"graph={_t['graph']-_t['filters']:.2f}s ({_t['candidate_count']} cands) "
             f"neighbors={_t['neighbors']-_t['graph']:.2f}s "
-            f"prompt={_t['prompt_built']-_t['neighbors']:.2f}s "
+            f"knn={((knn_done-knn_start) if knn_start is not None and knn_done is not None else 0.0):.2f}s "
+            f"ce={((cwe_ce_done-cwe_ce_start) if cwe_ce_start is not None and cwe_ce_done is not None else 0.0):.2f}s "
+            f"post={_t['prompt_built']-_t['neighbors']:.2f}s "
             f"llm={_t['llm']-_t['prompt_built']:.2f}s "
             f"total={_t['llm']-_t['start']:.2f}s",
             flush=True

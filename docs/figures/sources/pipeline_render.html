@@ -71,9 +71,9 @@ svg { display: block; }
   <rect class="section-bar" x="55" y="428" width="4" height="236" fill="#b02a37"></rect>
   <text class="section-label" x="0" y="0" transform="translate(30 546) rotate(-90)" text-anchor="middle" fill="#b02a37">BRIDGE LOGIC</text>
 
-  <!-- RERANK + GENERATE: y=704 to y=1132 → midpoint=918 -->
-  <rect class="section-bar" x="55" y="704" width="4" height="428" fill="#1f8f6f"></rect>
-  <text class="section-label" x="0" y="0" transform="translate(30 918) rotate(-90)" text-anchor="middle" fill="#1f8f6f">RERANK + GENERATE</text>
+  <!-- RERANK + GENERATE: y=704 to y=1142 → midpoint=923 -->
+  <rect class="section-bar" x="55" y="704" width="4" height="438" fill="#1f8f6f"></rect>
+  <text class="section-label" x="0" y="0" transform="translate(30 923) rotate(-90)" text-anchor="middle" fill="#1f8f6f">RERANK + GENERATE</text>
 
   <!-- OUTPUT: y=1172 to y=1300 → midpoint=1236 -->
   <rect class="section-bar" x="55" y="1172" width="4" height="128" fill="#10b981"></rect>
@@ -191,30 +191,38 @@ svg { display: block; }
   <text class="box-sub" x="390" y="888" text-anchor="middle">retrieved chunks + CTI-Bench prompt</text>
   <path class="edge" marker-end="url(#arrow)" d="M390 907 L390 937"></path>
 
-  <!-- ====== STAGE 8: LLM (y=942-1028) ====== -->
-  <g transform="translate(230 942)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="86" rx="10" fill="#efe9ff" stroke="#7c4dff" stroke-width="1.8"></rect>
+  <!-- ====== STAGE 8: Runtime model routing (y=930-1056) ====== -->
+  <g transform="translate(230 930)" filter="url(#shadow)">
+    <rect x="0" y="0" width="320" height="126" rx="10" fill="#efe9ff" stroke="#7c4dff" stroke-width="1.8"></rect>
   </g>
-  <g transform="translate(210 955)">
+  <g transform="translate(210 947)">
     <circle class="step-circle" cx="20" cy="20" r="18" fill="#7c4dff" stroke="#7c4dff"></circle>
     <text class="step-num" x="20" y="25" fill="#fff">8</text>
   </g>
-  <text class="box-title" x="390" y="970" text-anchor="middle">Qwen2.5-7B-Instruct (vLLM, FP16)</text>
-  <text class="box-sub" x="390" y="992" text-anchor="middle">single chat completion  ·  default temperature</text>
-  <text class="box-sub" x="390" y="1012" text-anchor="middle">apples-to-apples with CTI-Bench</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 1033 L390 1063"></path>
+  <text class="box-title" x="390" y="958" text-anchor="middle">Runtime model routing</text>
+  <text class="box-sub" x="390" y="979" text-anchor="middle">NVD mapping status</text>
+  <text class="box-sub" x="390" y="994" text-anchor="middle">selects vLLM endpoint</text>
 
-  <!-- ====== STAGE 9: Phrase selector (y=1068-1130) ====== -->
-  <g transform="translate(230 1068)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="62" rx="10" fill="#e4f3ed" stroke="#1f8f6f" stroke-width="1.8" stroke-dasharray="5 3"></rect>
+  <rect x="250" y="1003" width="130" height="42" rx="7" fill="#ffffff" stroke="#b02a37" stroke-width="1.4"></rect>
+  <text class="box-sub" x="315" y="1020" text-anchor="middle" style="font-weight:800;fill:#18202f;">mapped</text>
+  <text class="box-sub" x="315" y="1038" text-anchor="middle">Granite 4.1 8B</text>
+
+  <rect x="400" y="1003" width="130" height="42" rx="7" fill="#ffffff" stroke="#2d6cdf" stroke-width="1.4"></rect>
+  <text class="box-sub" x="465" y="1020" text-anchor="middle" style="font-weight:800;fill:#18202f;">unmapped</text>
+  <text class="box-sub" x="465" y="1038" text-anchor="middle">Foundation-Sec</text>
+  <path class="edge" marker-end="url(#arrow)" d="M390 1061 L390 1075"></path>
+
+  <!-- ====== STAGE 9: CWE-ID extraction (y=1080-1142) ====== -->
+  <g transform="translate(230 1080)" filter="url(#shadow)">
+    <rect x="0" y="0" width="320" height="62" rx="10" fill="#e4f3ed" stroke="#1f8f6f" stroke-width="1.8"></rect>
   </g>
-  <g transform="translate(210 1077)">
+  <g transform="translate(210 1089)">
     <circle class="step-circle" cx="20" cy="20" r="18" fill="#1f8f6f" stroke="#1f8f6f" stroke-dasharray="3 2"></circle>
     <text class="step-num" x="20" y="25" fill="#fff">9</text>
   </g>
-  <text class="box-title" x="390" y="1094" text-anchor="middle">Official CWE phrase selector</text>
-  <text class="box-sub" x="390" y="1116" text-anchor="middle">post-LLM rewrite  ·  alternate_term match</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 1135 L390 1167"></path>
+  <text class="box-title" x="390" y="1106" text-anchor="middle">CWE-ID extraction</text>
+  <text class="box-sub" x="390" y="1128" text-anchor="middle">parse final CWE identifier for strict match</text>
+  <path class="edge" marker-end="url(#arrow)" d="M390 1147 L390 1167"></path>
 
   <!-- ====== STAGE 10: Output (y=1172-1300) ====== -->
   <g transform="translate(160 1172)" filter="url(#shadow)">
@@ -225,7 +233,7 @@ svg { display: block; }
     <text class="step-num" x="20" y="26" fill="#fff" style="font-size:15px;">10</text>
   </g>
   <text class="output-title" x="390" y="1206" text-anchor="middle">Predicted CWE-ID</text>
-  <text class="output-result" x="390" y="1244" text-anchor="middle">851 / 1000  =  85.1% strict</text>
-  <text class="output-sub" x="390" y="1278" text-anchor="middle">+13 percentage points vs GPT-4 on CTI-Bench RCM</text>
+  <text class="output-result" x="390" y="1244" text-anchor="middle">865 / 1000  =  86.5% strict</text>
+  <text class="output-sub" x="390" y="1278" text-anchor="middle">Granite for mapped CVEs · Foundation-Sec for unmapped CVEs</text>
 </svg>
 </body></html>

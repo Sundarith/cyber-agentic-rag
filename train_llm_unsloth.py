@@ -56,7 +56,7 @@ def main() -> None:
             "gate_proj", "up_proj", "down_proj",
         ],
         lora_alpha=32,
-        lora_dropout=0.05,
+        lora_dropout=0,
         bias="none",
         use_gradient_checkpointing="unsloth",
         random_state=42,
@@ -100,7 +100,9 @@ def main() -> None:
         lr_scheduler_type="cosine",
         seed=42,
         output_dir=str(OUT_DIR / "checkpoints"),
-        save_strategy="epoch",
+        save_strategy="steps",
+        save_steps=500,
+        save_total_limit=3,
         report_to="none",
         max_seq_length=MAX_SEQ,
         dataset_text_field="text",
@@ -114,9 +116,11 @@ def main() -> None:
         args=args,
     )
 
-    print("Starting training...")
+    ckpt_dir = OUT_DIR / "checkpoints"
+    has_ckpt = ckpt_dir.exists() and any(ckpt_dir.glob("checkpoint-*"))
+    print(f"Starting training... (resume_from_checkpoint={has_ckpt})")
     t1 = time.time()
-    trainer.train()
+    trainer.train(resume_from_checkpoint=has_ckpt)
     print(f"Training complete in {(time.time()-t1)/60:.1f} min")
 
     merged_dir = OUT_DIR / "merged"

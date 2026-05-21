@@ -339,6 +339,93 @@
       border-left: 5px solid #8b95a7;
     }
 
+    .model-search {
+      min-height: 500px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 18px;
+    }
+
+    .model-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .model-stat {
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--capec);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px 18px;
+    }
+
+    .model-stat strong {
+      display: block;
+      color: var(--ink);
+      font-size: 24px;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .model-stat span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 680;
+      line-height: 1.35;
+    }
+
+    .model-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      table-layout: fixed;
+    }
+
+    .model-table th,
+    .model-table td {
+      padding: 11px 13px;
+      border-bottom: 1px solid #e3e7ee;
+      text-align: left;
+      font-size: 13px;
+      line-height: 1.25;
+      vertical-align: middle;
+    }
+
+    .model-table th {
+      background: #18202f;
+      color: #fff;
+      font-weight: 760;
+    }
+
+    .model-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .model-table td:nth-child(2),
+    .model-table th:nth-child(2) {
+      text-align: right;
+      width: 20%;
+      font-weight: 780;
+    }
+
+    .model-table td:nth-child(3),
+    .model-table th:nth-child(3) {
+      width: 26%;
+    }
+
+    .winner {
+      color: var(--capec);
+      font-weight: 820;
+    }
+
+    .rejected {
+      color: var(--muted);
+    }
+
     .latency-panel {
       border-top: 1px solid var(--line);
       margin-top: 24px;
@@ -522,6 +609,7 @@
         <button data-slide="vertical-compare">Model Scores</button>
         <button data-slide="mapped-compare">Mapped vs Unmapped</button>
         <button data-slide="improvements">Techniques</button>
+        <button data-slide="unmapped-models">Unmapped Models</button>
         <button data-slide="performance">Performance</button>
       </nav>
     </header>
@@ -531,8 +619,8 @@
         <article class="slide active" id="pipeline">
           <div class="slide-title">
             <div>
-              <h2>Five-stage retrieval grounds the LLM in public CTI data</h2>
-              <p>Hybrid search finds candidates, authoritative bridges inject known mappings, the rerank stack discriminates sibling CWEs, then a single LLM call reads the assembled evidence. Locked recipe: 851/1000 = 85.1% on CTI-Bench RCM.</p>
+              <h2>Five-stage retrieval grounds the routed local models</h2>
+              <p>Hybrid search finds candidates, authoritative bridges inject known mappings, the rerank stack discriminates sibling CWEs, then the router sends mapped CVEs to Granite and unmapped CVEs to Foundation-Sec. Routed ensemble: 865/1000 = 86.5% on CTI-Bench RCM.</p>
             </div>
           </div>
           <div class="viz">
@@ -551,7 +639,7 @@
               <path class="edge" marker-end="url(#arrow)" d="M346 116 L386 116"></path>
               <path class="edge" marker-end="url(#arrow)" d="M546 116 L586 116"></path>
               <path class="edge" marker-end="url(#arrow)" d="M766 116 L806 116"></path>
-              <path class="edge" marker-end="url(#arrow)" d="M926 116 L966 116"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M946 116 L966 116"></path>
 
               <!-- Data source feeds (bottom row, up into top row) -->
               <path class="edge soft" marker-end="url(#arrow-soft)" d="M276 322 C276 252 266 200 266 178"></path>
@@ -594,21 +682,21 @@
                 <text class="kind" x="14" y="86">HyDE + CE filter (≥0.3)</text>
               </g>
 
-              <!-- STAGE 5: LLM -->
+              <!-- STAGE 5: Runtime model router -->
               <g class="node cve" transform="translate(806 80)">
-                <rect width="120" height="76"></rect>
-                <text x="14" y="30">LLM</text>
-                <text class="kind" x="14" y="52">Qwen 2.5-7B</text>
-                <text class="kind" x="14" y="68">vLLM, FP16</text>
+                <rect width="140" height="76"></rect>
+                <text x="14" y="28">Model router</text>
+                <text class="kind" x="14" y="49">mapped → Granite</text>
+                <text class="kind" x="14" y="65">unmapped → F-Sec</text>
               </g>
 
               <!-- RESULT callout -->
               <g class="node" transform="translate(966 70)" style="--node-fill:#1c2538;--node-text:#fff;">
                 <rect width="170" height="96" fill="#1c2538" stroke="#1c2538"></rect>
-                <text x="14" y="34" fill="#fff" style="font-size:22px;font-weight:760;">851 / 1000</text>
-                <text x="14" y="58" fill="#fff" style="font-size:14px;font-weight:600;">85.1% strict</text>
-                <text x="14" y="78" fill="#9ab3ff" style="font-size:11px;">+13 vs GPT-4 (CTI-Bench)</text>
-                <text x="14" y="92" fill="#9ab3ff" style="font-size:11px;">+8 vs phrase-only baseline</text>
+                <text x="14" y="34" fill="#fff" style="font-size:22px;font-weight:760;">865 / 1000</text>
+                <text x="14" y="58" fill="#fff" style="font-size:14px;font-weight:600;">86.5% strict</text>
+                <text x="14" y="78" fill="#9ab3ff" style="font-size:11px;">+14.5pp vs GPT-4</text>
+                <text x="14" y="92" fill="#9ab3ff" style="font-size:11px;">mapped/unmapped route</text>
               </g>
 
               <!-- Bottom row: data sources -->
@@ -648,7 +736,7 @@
           <div class="footer">
             <div class="note"><strong>Why hybrid retrieval</strong>BM25 catches exact CVE/CWE IDs; BGE embeddings catch paraphrases. Equal weighting beats either alone.</div>
             <div class="note"><strong>Why bridge injection</strong>NVD already assigns CWEs to 150k CVEs. Direct injection beats semantic guessing when ground truth exists.</div>
-            <div class="note"><strong>Why the rerank stack</strong>Sibling CWEs (CWE-77 vs 78, 125 vs 787) share vocabulary. Cross-encoder discrimination + HyDE expansion catches the near-misses.</div>
+            <div class="note"><strong>Runtime routing</strong>The system sends mapped CVEs to Granite 4.1 8B and unmapped CVEs to Foundation-Sec-8B-Reasoning on separate vLLM endpoints.</div>
           </div>
         </article>
 
@@ -850,10 +938,10 @@
 
               <text x="34" y="256" text-anchor="middle" transform="rotate(-90 34 256)" fill="#18202f" font-size="18" font-weight="720">Accuracy (%)</text>
 
-              <rect x="162" y="139" width="86" height="283" fill="#2d6cdf"></rect>
-              <text x="205" y="130" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">84.3</text>
+              <rect x="162" y="132" width="86" height="290" fill="#2d6cdf"></rect>
+              <text x="205" y="123" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">86.5</text>
               <text x="205" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">CTI-RAG</text>
-              <text x="205" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">7B + RAG</text>
+              <text x="205" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">routed RAG</text>
 
               <rect x="310" y="181" width="86" height="241" fill="#8b95a7"></rect>
               <text x="353" y="172" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">72.0</text>
@@ -882,7 +970,7 @@
 
               <g transform="translate(300 492)">
                 <rect x="0" y="-13" width="14" height="14" fill="#2d6cdf"></rect>
-                <text x="22" y="0" fill="#384052" font-size="13" font-weight="650">CTI-RAG current result</text>
+                <text x="22" y="0" fill="#384052" font-size="13" font-weight="650">CTI-RAG routed ensemble</text>
                 <rect x="224" y="-13" width="14" height="14" fill="#9aa3ad"></rect>
                 <text x="246" y="0" fill="#384052" font-size="13" font-weight="650">CTI-Bench paper baselines</text>
               </g>
@@ -890,7 +978,7 @@
           </div>
           <div class="footer">
             <div class="note"><strong>Task</strong>CTI-RCM maps a CVE vulnerability description to the correct CWE root-cause ID.</div>
-            <div class="note"><strong>Comparison</strong>Our 84.3% is compared to CTI-Bench paper baselines on the same CTI-RCM task.</div>
+            <div class="note"><strong>Comparison</strong>Our 86.5% routed ensemble is compared to CTI-Bench paper baselines on the same CTI-RCM task.</div>
             <div class="note"><strong>Caveat</strong>Our system uses retrieval over NVD/MITRE data; the paper model scores are memory-only baselines.</div>
           </div>
         </article>
@@ -899,7 +987,7 @@
           <div class="slide-title">
             <div>
               <h2>CTI-RAG performance by NVD mapping status</h2>
-              <p>This split explains where the 84.3% overall score comes from: mapped CVEs benefit from NVD structured CWE bridge lookup, while unmapped CVEs rely on description similarity and k-NN CWE voting.</p>
+              <p>This split explains where the 86.5% routed ensemble comes from: mapped CVEs benefit from NVD structured CWE bridge lookup, while unmapped CVEs require description-based CWE inference.</p>
             </div>
           </div>
           <div class="viz">
@@ -931,26 +1019,26 @@
 
               <text x="48" y="256" text-anchor="middle" transform="rotate(-90 48 256)" fill="#18202f" font-size="18" font-weight="720">Accuracy (%)</text>
 
-              <rect x="242" y="139" width="132" height="283" fill="#2d6cdf"></rect>
-              <text x="308" y="128" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">84.3</text>
+              <rect x="242" y="132" width="132" height="290" fill="#2d6cdf"></rect>
+              <text x="308" y="121" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">86.5</text>
               <text x="308" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">All queries</text>
-              <text x="308" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">843 / 1000</text>
+              <text x="308" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">865 / 1000</text>
 
-              <rect x="514" y="132" width="132" height="290" fill="#1f8f6f"></rect>
-              <text x="580" y="121" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">86.6</text>
+              <rect x="514" y="128" width="132" height="294" fill="#1f8f6f"></rect>
+              <text x="580" y="117" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">87.7</text>
               <text x="580" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">NVD-mapped</text>
-              <text x="580" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">782 / 903</text>
+              <text x="580" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">792 / 903</text>
 
-              <rect x="786" y="211" width="132" height="211" fill="#b45f06"></rect>
-              <text x="852" y="200" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">62.9</text>
+              <rect x="786" y="170" width="132" height="252" fill="#b45f06"></rect>
+              <text x="852" y="159" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">75.3</text>
               <text x="852" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">NVD-unmapped</text>
-              <text x="852" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">61 / 97</text>
+              <text x="852" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">73 / 97</text>
             </svg>
           </div>
           <div class="footer">
             <div class="note"><strong>Mapped CVEs</strong>903 of 1000 benchmark CVEs have an official NVD CWE assignment. Retrieval finds the matching CVE description and bridge-injects the structured CWE.</div>
-            <div class="note"><strong>Unmapped CVEs</strong>97 CVEs have no NVD CWE assignment. The system falls back to nearest mapped CVE descriptions and weighted CWE voting.</div>
-            <div class="note"><strong>Interpretation</strong>Mapped performance is retrieval-plus-lookup strength; unmapped performance is closer to generalization from vulnerability descriptions.</div>
+            <div class="note"><strong>Unmapped CVEs</strong>97 CVEs have no NVD CWE assignment. Foundation-Sec handles the description-only reasoning slot best among tested local models.</div>
+            <div class="note"><strong>Interpretation</strong>Mapped performance is retrieval-plus-lookup strength; unmapped performance is CWE taxonomy generalization.</div>
           </div>
         </article>
 
@@ -1042,6 +1130,100 @@
             <div class="note"><strong>What improved</strong>The system became more careful about when k-NN can override context, then added an official alias selector for cases where the correct CWE is already retrieved.</div>
             <div class="note"><strong>What stayed clean</strong>The phrase dictionary is generated for all CWEs from raw MITRE CWE XML, not from CTI-Bench failures.</div>
             <div class="note"><strong>Result</strong>NVD-unmapped accuracy improved from 61/97 to 68/97, or 62.9% to 70.1%.</div>
+          </div>
+        </article>
+
+        <article class="slide" id="unmapped-models">
+          <div class="slide-title">
+            <div>
+              <h2>Unmapped CVEs are a taxonomy precision problem</h2>
+              <p>The 97 NVD-unmapped cases have no structured CWE to copy. We tested same-size cyber, reasoning, and general models to find the best specialist for that slot.</p>
+            </div>
+          </div>
+          <div class="viz">
+            <div class="model-search">
+              <div class="model-summary">
+                <div class="model-stat">
+                  <strong>73/97</strong>
+                  <span>Foundation-Sec-8B-Reasoning is the best observed unmapped specialist, replicated twice.</span>
+                </div>
+                <div class="model-stat">
+                  <strong>72/97</strong>
+                  <span>Qwen3-8B + /no_think is the conservative fallback, one case behind Foundation-Sec.</span>
+                </div>
+                <div class="model-stat">
+                  <strong>63/97</strong>
+                  <span>RedSage looked promising from its model card, but regressed in this RAG recipe.</span>
+                </div>
+              </div>
+
+              <table class="model-table" aria-label="Unmapped specialist model search results">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Score</th>
+                    <th>Decision</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Foundation-Sec-8B-Reasoning</td>
+                    <td class="winner">73/97</td>
+                    <td class="winner">Current specialist</td>
+                  </tr>
+                  <tr>
+                    <td>Qwen3-8B + /no_think</td>
+                    <td>72/97</td>
+                    <td>Conservative fallback</td>
+                  </tr>
+                  <tr>
+                    <td>Qwen3-14B-AWQ</td>
+                    <td>69/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>Qwen2.5-14B-AWQ</td>
+                    <td>69/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>WhiteRabbitNeo-2-8B</td>
+                    <td>68/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>Qwen3.5-9B-AWQ</td>
+                    <td>67/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>Gemma 4 E4B non-thinking</td>
+                    <td>67/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>RedSage-Qwen3-8B-Ins</td>
+                    <td>63/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>Llama-Primus-Base</td>
+                    <td>59/97</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                  <tr>
+                    <td>Phi-4-reasoning-AWQ</td>
+                    <td>5/10 smoke</td>
+                    <td class="rejected">Rejected</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="footer">
+            <div class="note"><strong>What the search shows</strong>Cyber tuning alone did not fix CWE sibling and parent-child boundary errors.</div>
+            <div class="note"><strong>What not to chase</strong>Bigger 14B Qwen AWQ variants and newer cyber fine-tunes did not beat the 8B specialists.</div>
+            <div class="note"><strong>Routing choice</strong>Mapped CVEs go to Granite; unmapped CVEs go to Foundation-Sec, with Qwen3 as the cautious fallback.</div>
           </div>
         </article>
 

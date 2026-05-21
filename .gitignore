@@ -34,6 +34,7 @@ data/processed/chunk_embs_*.npy
 data/processed/t_raft_*.jsonl*
 data/models/
 logs/
+wandb/
 unsloth_compiled_cache/
 checkpoints/
 .claude/

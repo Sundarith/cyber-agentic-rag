@@ -8,26 +8,54 @@ CTI-RAG answers questions across MITRE ATT&CK, CAPEC, CWE, and NVD CVE data, inc
 Group -> Malware/Tool -> Technique -> CAPEC -> CWE -> Mitigation
 ```
 
-The system uses hybrid retrieval, explicit MITRE/NVD relationship bridges, graph expansion, and a local 7B instruct model served by vLLM.
+The system uses hybrid retrieval, explicit MITRE/NVD relationship bridges, graph expansion, and local 8B-class models served by vLLM. The current system name is **Graph-Augmented Hybrid RAG**.
 
 ## Result
 
-CTI-RAG scores **85.1% (851/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping.
+Graph-Augmented Hybrid RAG scores **86.5% (865/1000)** on the CTI-Bench CTI-RCM benchmark for CVE-to-CWE root cause mapping with deterministic per-CVE routing:
+
+- NVD-mapped CVEs -> IBM Granite 4.1 8B
+- NVD-unmapped CVEs -> Foundation-Sec-8B-Reasoning
+
+The conservative fallback route, using Qwen3-8B for unmapped CVEs, scores **86.4% (864/1000)**.
 
 | System | CTI-RCM score | Setup |
 | --- | ---: | --- |
-| CTI-RAG | **85.1%** | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data + cross-encoder reorder + HyDE candidate expansion |
+| Graph-Augmented Hybrid RAG routed ensemble | **86.5%** | Granite 4.1 8B for NVD-mapped CVEs; Foundation-Sec-8B-Reasoning for NVD-unmapped CVEs; RAG over public NVD/MITRE data |
+| Graph-Augmented Hybrid RAG + Qwen3-8B | 85.6% | Single local 8B-class model with locked retrieval recipe |
+| Original locked recipe | 85.1% | Qwen2.5-7B-Instruct, local FP16 inference, RAG over public NVD/MITRE data + cross-encoder reorder + HyDE candidate expansion |
 | GPT-4 in CTI-Bench | 72.0% | Frontier model, no retrieval, memory-only answering |
 
 Breakdown:
 
 | Subset | Score |
 | --- | ---: |
-| All 1000 queries | **85.1%** (851/1000) |
-| NVD-mapped CVEs | **86.3%** (779/903) |
-| NVD-unmapped CVEs | **74.2%** (72/97) |
+| All 1000 queries, routed ensemble | **86.5%** (865/1000) |
+| NVD-mapped CVEs, Granite specialist | best observed **792/903** |
+| NVD-unmapped CVEs, Foundation-Sec specialist | **75.3%** (73/97), replicated |
+
+The routed system runs Granite and Foundation-Sec as separate vLLM endpoints under the same served model alias. Use `scripts/run_routed_eval.sh` for the current automatic route: mapped rows are sent to port 8001, unmapped rows to port 8000.
 
 The hard NVD-unmapped subset (no structured CWE in NVD, the system has to reason from the CVE description) lifted from the previous 62.9% baseline by adding two retrieval-side stages: cross-encoder re-ranking with `BAAI/bge-reranker-base` and HyDE-style candidate expansion with a cross-encoder noise filter.
+
+### Unmapped Specialist Search
+
+The 97 NVD-unmapped cases are the hardest part of CTI-RCM because no structured NVD CWE can be copied into context. We tested a broad set of same-size or practical single-GPU candidates for this slot:
+
+| Model | Unmapped score | Decision |
+| --- | ---: | --- |
+| Foundation-Sec-8B-Reasoning | **73/97** | Current unmapped specialist |
+| Qwen3-8B + `/no_think` | 72/97 | Conservative fallback |
+| Qwen3-14B-AWQ | 69/97 | Rejected |
+| Qwen2.5-14B-AWQ | 69/97 | Rejected |
+| WhiteRabbitNeo-2-8B | 68/97 | Rejected |
+| Qwen3.5-9B-AWQ | 67/97 | Rejected |
+| Gemma 4 E4B non-thinking | 67/97 | Rejected |
+| RedSage-Qwen3-8B-Ins | 63/97 | Rejected |
+| Llama-Primus-Base | 59/97 | Rejected |
+| Phi-4-reasoning-AWQ | 5/10 smoke | Rejected |
+
+The pattern is consistent: the remaining unmapped failures are mostly CWE taxonomy boundary errors, not broad cybersecurity understanding failures. Cyber fine-tuning or larger parameter count alone did not fix sibling/parent CWE confusion.
 
 This is not an apples-to-apples model comparison. CTI-RAG uses retrieval over public security data, while the GPT-4 number from CTI-Bench is a no-retrieval baseline. The result is still operationally meaningful: security teams usually have NVD and MITRE data available, and the benchmark tests whether a system can use that evidence reliably.
 
@@ -205,7 +233,7 @@ Use the same CTI-Bench prompt field used for the published GPT-4 comparison:
 conda run -n cyber-ft python3 -u eval_rcm.py 1000
 ```
 
-For the locked 85.1% result, enable the four retrieval-side env flags:
+For the original locked 85.1% single-model result, enable the four retrieval-side env flags:
 
 ```bash
 CTI_RAG_CWE_PHRASE_SELECTOR=1 \
@@ -233,6 +261,10 @@ Notes:
 - vLLM should be started with `--max-model-len 32768`; shorter context windows can fail on large CVE prompts.
 - The eval script intentionally uses `row["Prompt"]`, not a query containing the CVE ID. CVE-ID queries turn the benchmark into a database lookup.
 - Add `--profile` or set `CTI_RAG_PROFILE=1` to print `[R]` retrieval timings and `[T]` end-to-end checkpoints.
+- Add `--timing-audit` or set `CTI_RAG_TIMING_AUDIT=1` to write per-query timing summaries and per-LLM-request JSONL under `logs/`.
+- Add `--wandb` or set `CTI_RAG_WANDB=1` to stream eval progress, accuracy, and timing metrics to Weights & Biases. Set `WANDB_PROJECT` and optionally `WANDB_RUN_NAME` first.
+- Set `CTI_RAG_RCM_ONLY=1` for paper-focused CVE→CWE evals that load only CVE and CWE chunks, skipping ATT&CK and CAPEC.
+- Speed probes: set `CTI_RAG_LLM_HYDE_RESPONSE_BUDGET=96` to cap HyDE generation separately from final answers, `CTI_RAG_CWE_HYDE_SKIP_MAPPED_BRIDGE=1` to skip HyDE when mapped-CVE retrieval already exposes an NVD CWE bridge, and `CTI_RAG_CWE_MAPPED_FAST_CONTEXT=1` to keep mapped final context to the matched CVE plus its NVD CWE chunks.
 
 ## Implementation Notes
 
