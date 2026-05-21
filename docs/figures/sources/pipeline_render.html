@@ -58,26 +58,25 @@ svg { display: block; }
   </defs>
 
   <!-- ====== SECTION INDICATORS (left rail) ====== -->
-  <!-- Moved further left (x=30 for label, x=55 for bar) so stage 5a/5b fork doesn't overlap -->
   <!-- INPUT: y=20 to y=100 → midpoint=60 -->
   <rect class="section-bar" x="55" y="20" width="4" height="80" fill="#5c667a"></rect>
   <text class="section-label" x="0" y="0" transform="translate(30 60) rotate(-90)" text-anchor="middle" fill="#5c667a">INPUT</text>
 
-  <!-- RETRIEVAL: y=140 to y=388 → midpoint=264 -->
-  <rect class="section-bar" x="55" y="140" width="4" height="248" fill="#2d6cdf"></rect>
-  <text class="section-label" x="0" y="0" transform="translate(30 264) rotate(-90)" text-anchor="middle" fill="#2d6cdf">RETRIEVAL</text>
+  <!-- RETRIEVAL: y=140 to y=386 → midpoint=263 -->
+  <rect class="section-bar" x="55" y="140" width="4" height="246" fill="#2d6cdf"></rect>
+  <text class="section-label" x="0" y="0" transform="translate(30 263) rotate(-90)" text-anchor="middle" fill="#2d6cdf">RETRIEVAL</text>
 
-  <!-- BRIDGE LOGIC: y=428 to y=664 → midpoint=546 -->
-  <rect class="section-bar" x="55" y="428" width="4" height="236" fill="#b02a37"></rect>
-  <text class="section-label" x="0" y="0" transform="translate(30 546) rotate(-90)" text-anchor="middle" fill="#b02a37">BRIDGE LOGIC</text>
+  <!-- ENRICHMENT & RERANK: y=416 to y=848 → midpoint=632 -->
+  <rect class="section-bar" x="55" y="416" width="4" height="432" fill="#b02a37"></rect>
+  <text class="section-label" x="0" y="0" transform="translate(30 632) rotate(-90)" text-anchor="middle" fill="#b02a37">ENRICHMENT & RERANK</text>
 
-  <!-- RERANK + GENERATE: y=704 to y=1142 → midpoint=923 -->
-  <rect class="section-bar" x="55" y="704" width="4" height="438" fill="#1f8f6f"></rect>
-  <text class="section-label" x="0" y="0" transform="translate(30 923) rotate(-90)" text-anchor="middle" fill="#1f8f6f">RERANK + GENERATE</text>
+  <!-- GENERATION: y=878 to y=1004 → midpoint=941 -->
+  <rect class="section-bar" x="55" y="878" width="4" height="126" fill="#7c4dff"></rect>
+  <text class="section-label" x="0" y="0" transform="translate(30 941) rotate(-90)" text-anchor="middle" fill="#7c4dff">GENERATION</text>
 
-  <!-- OUTPUT: y=1172 to y=1300 → midpoint=1236 -->
-  <rect class="section-bar" x="55" y="1172" width="4" height="128" fill="#10b981"></rect>
-  <text class="section-label" x="0" y="0" transform="translate(30 1236) rotate(-90)" text-anchor="middle" fill="#10b981">OUTPUT</text>
+  <!-- OUTPUT: y=1060 to y=1280 → midpoint=1170 -->
+  <rect class="section-bar" x="55" y="1060" width="4" height="220" fill="#10b981"></rect>
+  <text class="section-label" x="0" y="0" transform="translate(30 1170) rotate(-90)" text-anchor="middle" fill="#10b981">OUTPUT</text>
 
   <!-- ====== STAGE 1: CTI-Bench prompt (y=20-100) ====== -->
   <g transform="translate(230 20)" filter="url(#shadow)">
@@ -101,139 +100,168 @@ svg { display: block; }
   </g>
   <text class="box-title" x="390" y="172" text-anchor="middle">Hybrid retrieval</text>
   <text class="box-sub" x="390" y="194" text-anchor="middle">BM25 + BGE-small-en-v1.5  ·  α = 0.5</text>
-  <text class="box-sub" x="390" y="214" text-anchor="middle">336k chunks indexed  ·  TOP_K = 8</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 241 L390 271"></path>
-
-  <!-- ====== STAGE 3: HyDE + CE filter (y=276-372) ====== -->
-  <g transform="translate(230 276)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="96" rx="10" fill="#e7eefb" stroke="#2d6cdf" stroke-width="1.8"></rect>
-  </g>
-  <g transform="translate(210 294)">
-    <circle class="step-circle" cx="20" cy="20" r="18" fill="#2d6cdf" stroke="#2d6cdf"></circle>
-    <text class="step-num" x="20" y="25" fill="#fff">3</text>
-  </g>
-  <text class="box-title" x="390" y="308" text-anchor="middle">HyDE expansion + CE filter</text>
-  <text class="box-sub" x="390" y="330" text-anchor="middle">LLM drafts a CWE-style hypothesis</text>
-  <text class="box-sub" x="390" y="350" text-anchor="middle">retrieve again  ·  cross-encoder ≥ 0.3</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 377 L390 423"></path>
-
-  <!-- ====== STAGE 4: Graph expansion (y=428-490) ====== -->
-  <g transform="translate(230 428)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="62" rx="10" fill="#f7f8fb" stroke="#5c667a" stroke-width="1.8"></rect>
-  </g>
-  <g transform="translate(210 437)">
-    <circle class="step-circle" cx="20" cy="20" r="18" fill="#5c667a" stroke="#5c667a"></circle>
-    <text class="step-num" x="20" y="25" fill="#fff">4</text>
-  </g>
-  <text class="box-title" x="390" y="454" text-anchor="middle">Graph expansion (2-hop)</text>
-  <text class="box-sub" x="390" y="476" text-anchor="middle">ATT&amp;CK · CAPEC · CWE · CVE neighbors</text>
+  <text class="box-sub" x="390" y="214" text-anchor="middle">332k chunks indexed  ·  TOP_K = 8</text>
 
   <!-- Fork: mapped vs unmapped -->
-  <path class="edge-fork" d="M390 490 L390 514"></path>
-  <path class="edge-fork" d="M220 514 L560 514"></path>
-  <path class="edge-fork" marker-end="url(#arrow-fork)" d="M220 514 L220 545"></path>
-  <path class="edge-fork" marker-end="url(#arrow-fork)" d="M560 514 L560 545"></path>
-  <text class="fork-label" x="305" y="510" text-anchor="end">mapped</text>
-  <text class="fork-label" x="475" y="510" text-anchor="start">unmapped</text>
+  <path class="edge-fork" d="M390 236 L390 260"></path>
+  <path class="edge-fork" d="M220 260 L560 260"></path>
+  <path class="edge-fork" marker-end="url(#arrow-fork)" d="M220 260 L220 285"></path>
+  <path class="edge-fork" marker-end="url(#arrow-fork)" d="M560 260 L560 285"></path>
+  <text class="fork-label" x="290" y="252" text-anchor="end">mapped (Fast Path)</text>
+  <text class="fork-label" x="490" y="252" text-anchor="start">unmapped (Reasoning Path)</text>
 
-  <!-- ====== STAGE 5a: NVD CWE bridge (y=548-640) ====== -->
-  <g transform="translate(85 548)" filter="url(#shadow)">
-    <rect x="0" y="0" width="270" height="92" rx="10" fill="#fbe9eb" stroke="#b02a37" stroke-width="1.8"></rect>
+  <!-- ====== LEFT COLUMN (Fast Path) ====== -->
+  <!-- STAGE 3a: NVD CWE bridge (y=290-386) -->
+  <g transform="translate(85 290)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="96" rx="10" fill="#fbe9eb" stroke="#b02a37" stroke-width="1.8"></rect>
   </g>
-  <g transform="translate(65 566)">
+  <g transform="translate(65 308)">
     <circle class="step-circle" cx="20" cy="20" r="18" fill="#b02a37" stroke="#b02a37"></circle>
-    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">5a</text>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">3a</text>
   </g>
-  <text class="box-title" x="220" y="578" text-anchor="middle">NVD CWE bridge</text>
-  <text class="box-sub" x="220" y="600" text-anchor="middle">inject NVD `cwe_ids` into context</text>
-  <text class="box-sub" x="220" y="620" text-anchor="middle">strip competing CWE chunks</text>
+  <text class="box-title" x="220" y="322" text-anchor="middle">NVD CWE bridge</text>
+  <text class="box-sub" x="220" y="344" text-anchor="middle">inject NVD `cwe_ids` into context</text>
+  <text class="box-sub" x="220" y="364" text-anchor="middle">strip competing CWE chunks</text>
+  <path class="edge" marker-end="url(#arrow)" d="M220 386 L220 411"></path>
 
-  <!-- ====== STAGE 5b: k-NN voting (y=548-640) ====== -->
-  <g transform="translate(425 548)" filter="url(#shadow)">
+  <!-- STAGE 4a: Final context assembly (y=416-478) -->
+  <g transform="translate(85 416)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="62" rx="10" fill="#f7f8fb" stroke="#5c667a" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(65 425)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#5c667a" stroke="#5c667a"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">4a</text>
+  </g>
+  <text class="box-title" x="220" y="442" text-anchor="middle">Final context assembly</text>
+  <text class="box-sub" x="220" y="464" text-anchor="middle">NVD-bridged context + prompt</text>
+  
+  <!-- Bypass Edge -->
+  <path class="edge" marker-end="url(#arrow)" d="M220 478 L220 873"></path>
+  <text class="box-sub" x="230" y="660" text-anchor="start" style="font-weight:700; fill:#7c4dff;">Fast Path Bypass</text>
+  <text class="box-sub" x="230" y="680" text-anchor="start">Bypasses HyDE, Graph, k-NN & CE</text>
+
+
+  <!-- ====== RIGHT COLUMN (Reasoning Path) ====== -->
+  <!-- STAGE 3b: HyDE expansion + CE filter (y=290-386) -->
+  <g transform="translate(425 290)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="96" rx="10" fill="#e7eefb" stroke="#2d6cdf" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(405 308)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#2d6cdf" stroke="#2d6cdf"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">3b</text>
+  </g>
+  <text class="box-title" x="560" y="322" text-anchor="middle">HyDE expansion + CE filter</text>
+  <text class="box-sub" x="560" y="344" text-anchor="middle">LLM drafts a CWE-style hypothesis</text>
+  <text class="box-sub" x="560" y="364" text-anchor="middle">retrieve again · cross-encoder ≥ 0.3</text>
+  <path class="edge" marker-end="url(#arrow)" d="M560 386 L560 411"></path>
+
+  <!-- STAGE 4b: Graph expansion (y=416-478) -->
+  <g transform="translate(425 416)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="62" rx="10" fill="#f7f8fb" stroke="#5c667a" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(405 425)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#5c667a" stroke="#5c667a"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">4b</text>
+  </g>
+  <text class="box-title" x="560" y="442" text-anchor="middle">Graph expansion</text>
+  <text class="box-sub" x="560" y="464" text-anchor="middle">2-hop CVE · CWE neighbors traversal</text>
+  <path class="edge" marker-end="url(#arrow)" d="M560 478 L560 533"></path>
+
+  <!-- STAGE 5b: Weighted k-NN CWE voting fallback (y=538-630) -->
+  <g transform="translate(425 538)" filter="url(#shadow)">
     <rect x="0" y="0" width="270" height="92" rx="10" fill="#fbe9eb" stroke="#b02a37" stroke-width="1.8"></rect>
   </g>
-  <g transform="translate(405 566)">
+  <g transform="translate(405 556)">
     <circle class="step-circle" cx="20" cy="20" r="18" fill="#b02a37" stroke="#b02a37"></circle>
     <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">5b</text>
   </g>
-  <text class="box-title" x="560" y="578" text-anchor="middle">Weighted k-NN CWE voting</text>
-  <text class="box-sub" x="560" y="600" text-anchor="middle">over 150k mapped CVEs</text>
-  <text class="box-sub" x="560" y="620" text-anchor="middle">θ = 0.90  ·  margin = 1.50</text>
+  <text class="box-title" x="560" y="568" text-anchor="middle">Weighted k-NN CWE voting</text>
+  <text class="box-sub" x="560" y="590" text-anchor="middle">over 150k mapped CVEs fallback</text>
+  <text class="box-sub" x="560" y="610" text-anchor="middle">θ = 0.90 · margin = 1.50</text>
+  <path class="edge" marker-end="url(#arrow)" d="M560 630 L560 655"></path>
+
+  <!-- STAGE 6b: Cross-encoder rerank (y=660-756) -->
+  <g transform="translate(425 660)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="96" rx="10" fill="#e4f3ed" stroke="#1f8f6f" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(405 678)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#1f8f6f" stroke="#1f8f6f"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">6b</text>
+  </g>
+  <text class="box-title" x="560" y="692" text-anchor="middle">Cross-encoder rerank</text>
+  <text class="box-sub" x="560" y="714" text-anchor="middle">BAAI/bge-reranker-base</text>
+  <text class="box-sub" x="560" y="734" text-anchor="middle">sorts candidate CWE chunks</text>
+  <path class="edge" marker-end="url(#arrow)" d="M560 756 L560 781"></path>
+
+  <!-- STAGE 7b: Final context assembly (y=786-848) -->
+  <g transform="translate(425 786)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="62" rx="10" fill="#f7f8fb" stroke="#5c667a" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(405 795)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#5c667a" stroke="#5c667a"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">7b</text>
+  </g>
+  <text class="box-title" x="560" y="812" text-anchor="middle">Final context assembly</text>
+  <text class="box-sub" x="560" y="834" text-anchor="middle">unmapped context + prompt</text>
+  <path class="edge" marker-end="url(#arrow)" d="M560 848 L560 873"></path>
+
+
+  <!-- ====== INFERENCE MODELS ====== -->
+  <!-- LEFT COLUMN - STAGE 8a: IBM Granite 4.1 8B (y=878-1004) -->
+  <g transform="translate(85 878)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="126" rx="10" fill="#efe9ff" stroke="#7c4dff" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(65 896)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#7c4dff" stroke="#7c4dff"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">8a</text>
+  </g>
+  <text class="box-title" x="220" y="910" text-anchor="middle">IBM Granite 4.1 8B</text>
+  <text class="box-sub" x="220" y="934" text-anchor="middle">Fast Path LLM (Port 8001)</text>
+  <text class="box-sub" x="220" y="958" text-anchor="middle">Input: CVE + Bridged CWEs</text>
+  <text class="box-sub" x="220" y="980" text-anchor="middle">Speed: ~85 tokens/sec</text>
+
+  <!-- RIGHT COLUMN - STAGE 8b: Foundation-Sec-8B (y=878-1004) -->
+  <g transform="translate(425 878)" filter="url(#shadow)">
+    <rect x="0" y="0" width="270" height="126" rx="10" fill="#efe9ff" stroke="#7c4dff" stroke-width="1.8"></rect>
+  </g>
+  <g transform="translate(405 896)">
+    <circle class="step-circle" cx="20" cy="20" r="18" fill="#7c4dff" stroke="#7c4dff"></circle>
+    <text class="step-num" x="20" y="25" fill="#fff" style="font-size:12px;">8b</text>
+  </g>
+  <text class="box-title" x="560" y="910" text-anchor="middle">Foundation-Sec-8B</text>
+  <text class="box-sub" x="560" y="934" text-anchor="middle">Reasoning Path LLM (Port 8000)</text>
+  <text class="box-sub" x="560" y="958" text-anchor="middle">Input: Expanded Graph Context</text>
+  <text class="box-sub" x="560" y="980" text-anchor="middle">Speed: ~24 tokens/sec (CoT)</text>
+
 
   <!-- Merge -->
-  <path class="edge-fork" d="M220 640 L220 664"></path>
-  <path class="edge-fork" d="M560 640 L560 664"></path>
-  <path class="edge-fork" d="M220 664 L560 664"></path>
-  <path class="edge" marker-end="url(#arrow)" d="M390 664 L390 699"></path>
+  <path class="edge-fork" d="M220 1004 L220 1026"></path>
+  <path class="edge-fork" d="M560 1004 L560 1026"></path>
+  <path class="edge-fork" d="M220 1026 L560 1026"></path>
+  <path class="edge" marker-end="url(#arrow)" d="M390 1026 L390 1055"></path>
 
-  <!-- ====== STAGE 6: Cross-encoder rerank (y=704-800) ====== -->
-  <g transform="translate(230 704)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="96" rx="10" fill="#e4f3ed" stroke="#1f8f6f" stroke-width="1.8"></rect>
-  </g>
-  <g transform="translate(210 722)">
-    <circle class="step-circle" cx="20" cy="20" r="18" fill="#1f8f6f" stroke="#1f8f6f"></circle>
-    <text class="step-num" x="20" y="25" fill="#fff">6</text>
-  </g>
-  <text class="box-title" x="390" y="736" text-anchor="middle">Cross-encoder rerank</text>
-  <text class="box-sub" x="390" y="758" text-anchor="middle">BAAI/bge-reranker-base (278M params)</text>
-  <text class="box-sub" x="390" y="778" text-anchor="middle">skipped if bridge or high-confidence k-NN</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 805 L390 835"></path>
-
-  <!-- ====== STAGE 7: Final context assembly (y=840-902) ====== -->
-  <g transform="translate(230 840)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="62" rx="10" fill="#f7f8fb" stroke="#5c667a" stroke-width="1.8"></rect>
-  </g>
-  <g transform="translate(210 849)">
-    <circle class="step-circle" cx="20" cy="20" r="18" fill="#5c667a" stroke="#5c667a"></circle>
-    <text class="step-num" x="20" y="25" fill="#fff">7</text>
-  </g>
-  <text class="box-title" x="390" y="866" text-anchor="middle">Final context assembly</text>
-  <text class="box-sub" x="390" y="888" text-anchor="middle">retrieved chunks + CTI-Bench prompt</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 907 L390 937"></path>
-
-  <!-- ====== STAGE 8: Runtime model routing (y=930-1056) ====== -->
-  <g transform="translate(230 930)" filter="url(#shadow)">
-    <rect x="0" y="0" width="320" height="126" rx="10" fill="#efe9ff" stroke="#7c4dff" stroke-width="1.8"></rect>
-  </g>
-  <g transform="translate(210 947)">
-    <circle class="step-circle" cx="20" cy="20" r="18" fill="#7c4dff" stroke="#7c4dff"></circle>
-    <text class="step-num" x="20" y="25" fill="#fff">8</text>
-  </g>
-  <text class="box-title" x="390" y="958" text-anchor="middle">Runtime model routing</text>
-  <text class="box-sub" x="390" y="979" text-anchor="middle">NVD mapping status</text>
-  <text class="box-sub" x="390" y="994" text-anchor="middle">selects vLLM endpoint</text>
-
-  <rect x="250" y="1003" width="130" height="42" rx="7" fill="#ffffff" stroke="#b02a37" stroke-width="1.4"></rect>
-  <text class="box-sub" x="315" y="1020" text-anchor="middle" style="font-weight:800;fill:#18202f;">mapped</text>
-  <text class="box-sub" x="315" y="1038" text-anchor="middle">Granite 4.1 8B</text>
-
-  <rect x="400" y="1003" width="130" height="42" rx="7" fill="#ffffff" stroke="#2d6cdf" stroke-width="1.4"></rect>
-  <text class="box-sub" x="465" y="1020" text-anchor="middle" style="font-weight:800;fill:#18202f;">unmapped</text>
-  <text class="box-sub" x="465" y="1038" text-anchor="middle">Foundation-Sec</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 1061 L390 1075"></path>
-
-  <!-- ====== STAGE 9: CWE-ID extraction (y=1080-1142) ====== -->
-  <g transform="translate(230 1080)" filter="url(#shadow)">
+  <!-- ====== STAGE 9: CWE-ID extraction (y=1060-1122) ====== -->
+  <g transform="translate(230 1060)" filter="url(#shadow)">
     <rect x="0" y="0" width="320" height="62" rx="10" fill="#e4f3ed" stroke="#1f8f6f" stroke-width="1.8"></rect>
   </g>
-  <g transform="translate(210 1089)">
+  <g transform="translate(210 1069)">
     <circle class="step-circle" cx="20" cy="20" r="18" fill="#1f8f6f" stroke="#1f8f6f" stroke-dasharray="3 2"></circle>
     <text class="step-num" x="20" y="25" fill="#fff">9</text>
   </g>
-  <text class="box-title" x="390" y="1106" text-anchor="middle">CWE-ID extraction</text>
-  <text class="box-sub" x="390" y="1128" text-anchor="middle">parse final CWE identifier for strict match</text>
-  <path class="edge" marker-end="url(#arrow)" d="M390 1147 L390 1167"></path>
+  <text class="box-title" x="390" y="1086" text-anchor="middle">CWE-ID extraction</text>
+  <text class="box-sub" x="390" y="1108" text-anchor="middle">Post-LLM phrase selector correction</text>
+  <path class="edge" marker-end="url(#arrow)" d="M390 1122 L390 1147"></path>
 
-  <!-- ====== STAGE 10: Output (y=1172-1300) ====== -->
-  <g transform="translate(160 1172)" filter="url(#shadow)">
+  <!-- ====== STAGE 10: Output (y=1152-1280) ====== -->
+  <g transform="translate(160 1152)" filter="url(#shadow)">
     <rect x="0" y="0" width="460" height="128" rx="12" fill="#1c2538" stroke="#10b981" stroke-width="2.5"></rect>
   </g>
-  <g transform="translate(140 1216)">
+  <g transform="translate(140 1196)">
     <circle class="step-circle" cx="20" cy="20" r="20" fill="#10b981" stroke="#10b981"></circle>
     <text class="step-num" x="20" y="26" fill="#fff" style="font-size:15px;">10</text>
   </g>
-  <text class="output-title" x="390" y="1206" text-anchor="middle">Predicted CWE-ID</text>
-  <text class="output-result" x="390" y="1244" text-anchor="middle">865 / 1000  =  86.5% strict</text>
-  <text class="output-sub" x="390" y="1278" text-anchor="middle">Granite for mapped CVEs · Foundation-Sec for unmapped CVEs</text>
+  <text class="output-title" x="390" y="1186" text-anchor="middle">Predicted CWE-ID</text>
+  <text class="output-result" x="390" y="1224" text-anchor="middle">86.4% Accuracy (864 / 1000)</text>
+  <text class="output-sub" x="390" y="1258" text-anchor="middle">Fast: 87.7% (792/903) · Reasoning: 74.2% (72/97)</text>
 </svg>
 </body></html>

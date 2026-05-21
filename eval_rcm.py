@@ -42,6 +42,11 @@ TIMING_AUDIT = (
 TIMING_RUN_ID = getattr(better_rag, "TIMING_RUN_ID", time.strftime("%Y%m%d_%H%M%S"))
 EVAL_TIMING_PATH = Path(os.environ.get("CTI_RAG_EVAL_TIMING_LOG", f"logs/eval_timing_{TIMING_RUN_ID}.jsonl"))
 EVAL_TIMING_SUMMARY_PATH = Path(os.environ.get("CTI_RAG_EVAL_TIMING_SUMMARY", f"logs/eval_timing_{TIMING_RUN_ID}.md"))
+STREAM_RESULTS = (
+    TIMING_AUDIT
+    or os.environ.get("CTI_RAG_EVAL_STREAM_RESULTS", "0").lower() in {"1", "true", "yes", "on"}
+)
+EVAL_RESULT_STREAM_PATH = Path(os.environ.get("CTI_RAG_EVAL_RESULT_LOG", f"logs/eval_results_{TIMING_RUN_ID}.jsonl"))
 WANDB_ENABLED = (
     "--wandb" in sys.argv
     or os.environ.get("CTI_RAG_WANDB", "0").lower() in {"1", "true", "yes", "on"}
@@ -297,9 +302,13 @@ def write_timing_audit(results: list[dict], mode_label: str, seed: int) -> None:
         f"- seed: {seed}",
         f"- workers: {WORKERS}",
         f"- query timing JSONL: `{EVAL_TIMING_PATH}`",
+    ]
+    if STREAM_RESULTS:
+        lines.append(f"- streamed result JSONL: `{EVAL_RESULT_STREAM_PATH}`")
+    lines.extend([
         f"- LLM request JSONL: `{getattr(better_rag, 'LLM_TIMING_LOG_PATH', '')}`",
         "",
-    ]
+    ])
     for group_name, rows in groups.items():
         if not rows:
             continue
@@ -357,6 +366,17 @@ def write_timing_audit(results: list[dict], mode_label: str, seed: int) -> None:
         print(f"Wrote LLM request JSONL: {getattr(better_rag, 'LLM_TIMING_LOG_PATH', '')}")
 
 
+def write_result_checkpoint(result: dict, index: int, completed: int) -> None:
+    if not STREAM_RESULTS:
+        return
+    EVAL_RESULT_STREAM_PATH.parent.mkdir(parents=True, exist_ok=True)
+    row = dict(result)
+    row["index"] = index + 1
+    row["completed"] = completed
+    with EVAL_RESULT_STREAM_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, sort_keys=True) + "\n")
+
+
 def run_eval(n: int = SAMPLE_N, seed: int = SEED, matched_only: bool = False, local_only: bool = False,
              nvd_mapped: bool = False, nvd_unmapped: bool = False, debug_failures: bool = False):
     random.seed(seed)
@@ -410,6 +430,10 @@ def run_eval(n: int = SAMPLE_N, seed: int = SEED, matched_only: bool = False, lo
     else:
         mode_label = "all entries"
     results = [None] * len(sample)
+    if STREAM_RESULTS:
+        EVAL_RESULT_STREAM_PATH.parent.mkdir(parents=True, exist_ok=True)
+        EVAL_RESULT_STREAM_PATH.write_text("", encoding="utf-8")
+        print(f"Streaming per-query results to: {EVAL_RESULT_STREAM_PATH}")
     wandb_run = init_wandb(len(sample), mode_label, seed)
 
     def _run_one(i: int, row: dict) -> tuple[int, dict]:
@@ -481,6 +505,7 @@ def run_eval(n: int = SAMPLE_N, seed: int = SEED, matched_only: bool = False, lo
             status = "PASS" if result["passed"] else "FAIL"
             snippet = result.get("answer", result.get("error", ""))[:120].replace("\n", " ")
             print(f"[{completed}/{len(sample)}] {cve_id}  GT: {gt_cwe}  {status} | {snippet}")
+            write_result_checkpoint(result, i, completed)
             log_wandb_step(wandb_run, result, completed, len(sample), counters)
 
     passed_n = sum(1 for r in results if r["passed"])

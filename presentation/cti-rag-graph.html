@@ -600,6 +600,7 @@
         <h1>CTI-RAG Graph Walkthrough</h1>
         <div class="subtitle">How the system crosses ATT&CK, CAPEC, CWE, CVE, and mitigations without relying on model memory.</div>
         <a class="report-link" href="cti_rag_final_report_2026-05-17.pdf" target="_blank" rel="noopener">Final Report (PDF)</a>
+        <a class="report-link" href="cti_rag_ieee_acsac_2026.pdf" target="_blank" rel="noopener">IEEE Draft (PDF)</a>
       </div>
       <nav class="tabs" aria-label="Presentation views">
         <button class="active" data-slide="pipeline">Pipeline</button>
@@ -620,7 +621,7 @@
           <div class="slide-title">
             <div>
               <h2>Five-stage retrieval grounds the routed local models</h2>
-              <p>Hybrid search finds candidates, authoritative bridges inject known mappings, the rerank stack discriminates sibling CWEs, then the router sends mapped CVEs to Granite and unmapped CVEs to Foundation-Sec. Routed ensemble: 865/1000 = 86.5% on CTI-Bench RCM.</p>
+              <p>Hybrid search finds candidates, authoritative bridges inject known mappings, the rerank stack discriminates sibling CWEs, then the router sends mapped CVEs to Granite and unmapped CVEs to Foundation-Sec. Routed ensemble: 864/1000 = 86.4% on CTI-Bench RCM.</p>
             </div>
           </div>
           <div class="viz">
@@ -634,103 +635,169 @@
                 </marker>
               </defs>
 
-              <!-- Pipeline flow arrows (top row, left to right) -->
-              <path class="edge" marker-end="url(#arrow)" d="M150 116 L186 116"></path>
-              <path class="edge" marker-end="url(#arrow)" d="M346 116 L386 116"></path>
-              <path class="edge" marker-end="url(#arrow)" d="M546 116 L586 116"></path>
-              <path class="edge" marker-end="url(#arrow)" d="M766 116 L806 116"></path>
-              <path class="edge" marker-end="url(#arrow)" d="M946 116 L966 116"></path>
+              <!-- Pipeline flow arrows (branched from Stage 2) -->
+              <!-- Stage 1 -> Stage 2 -->
+              <path class="edge" marker-end="url(#arrow)" d="M130 150 L150 150"></path>
+              
+              <!-- Stage 2 -> Mapped Fork -->
+              <path class="edge-fork" d="M290 150 L305 150 L305 68 L320 68"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M305 68 L320 68"></path>
+              
+              <!-- Stage 2 -> Unmapped Fork -->
+              <path class="edge-fork" d="M290 150 L305 150 L305 228 L320 228"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M305 228 L320 228"></path>
 
-              <!-- Data source feeds (bottom row, up into top row) -->
-              <path class="edge soft" marker-end="url(#arrow-soft)" d="M276 322 C276 252 266 200 266 178"></path>
-              <path class="edge soft" marker-end="url(#arrow-soft)" d="M476 322 C476 252 466 200 466 178"></path>
-              <path class="edge soft" marker-end="url(#arrow-soft)" d="M826 322 C826 252 686 196 626 178"></path>
-              <path class="edge soft" marker-end="url(#arrow-soft)" d="M886 322 C886 252 826 196 686 178"></path>
+              <!-- Mapped / Fast Path Flow -->
+              <path class="edge" marker-end="url(#arrow)" d="M470 68 L500 68"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M650 68 L680 68"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M830 68 L860 58"></path>
+
+              <!-- Unmapped / Reasoning Path Flow -->
+              <path class="edge" marker-end="url(#arrow)" d="M470 228 L500 228"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M650 228 L680 228"></path>
+              <path class="edge" marker-end="url(#arrow)" d="M830 228 L860 228"></path>
+              
+              <!-- Unmapped LLM -> CWE Extraction (vertical merge) -->
+              <path class="edge" marker-end="url(#arrow)" d="M935 180 L935 101"></path>
+
+              <!-- CWE Extraction -> Output -->
+              <path class="edge" marker-end="url(#arrow)" d="M1010 58 L1030 58"></path>
+
+              <!-- Data source feeds (bottom row, up into pipeline) -->
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M240 360 C240 300 220 250 220 203"></path>
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M470 360 C470 320 575 320 575 281"></path>
+              <path class="edge soft" marker-end="url(#arrow-soft)" d="M800 360 C800 240 395 240 395 121"></path>
 
               <!-- STAGE 1: CVE prompt -->
-              <g class="node" transform="translate(30 80)">
-                <rect width="120" height="76"></rect>
-                <text x="14" y="30">CVE prompt</text>
-                <text class="kind" x="14" y="52">CTI-Bench</text>
-                <text class="kind" x="14" y="68">RCM row</text>
+              <g class="node" transform="translate(20 112)">
+                <rect width="110" height="76"></rect>
+                <text x="12" y="26">CVE prompt</text>
+                <text class="kind" x="12" y="46">CTI-Bench</text>
+                <text class="kind" x="12" y="62">RCM row</text>
               </g>
 
               <!-- STAGE 2: Hybrid retrieval -->
-              <g class="node attack" transform="translate(186 70)">
-                <rect width="160" height="96"></rect>
-                <text x="14" y="28">Hybrid retrieval</text>
-                <text class="kind" x="14" y="50">BM25 + BGE-small</text>
-                <text class="kind" x="14" y="68">336k chunks</text>
-                <text class="kind" x="14" y="86">top-8 candidates</text>
+              <g class="node attack" transform="translate(150 102)">
+                <rect width="140" height="96"></rect>
+                <text x="12" y="24">Hybrid retrieval</text>
+                <text class="kind" x="12" y="44">BM25 + BGE-small</text>
+                <text class="kind" x="12" y="60">332k CVE chunks</text>
+                <text class="kind" x="12" y="76">Top-8 candidates</text>
               </g>
 
-              <!-- STAGE 3: Bridge injection -->
-              <g class="node group" transform="translate(386 70)">
-                <rect width="160" height="96"></rect>
-                <text x="14" y="28">Bridge injection</text>
-                <text class="kind" x="14" y="50">NVD cwe_ids</text>
-                <text class="kind" x="14" y="68">(mapped path)</text>
-                <text class="kind" x="14" y="86">k-NN θ=0.90 m=1.5</text>
+              <!-- Fork Labels -->
+              <text class="fork-label" x="310" y="105" text-anchor="start" style="font-size:9px;">mapped</text>
+              <text class="fork-label" x="310" y="195" text-anchor="start" style="font-size:9px;">unmapped</text>
+
+              <!-- ====== LEFT COLUMN / MAPPED PATH ====== -->
+              <!-- STAGE 3a: NVD CWE bridge -->
+              <g class="node group" transform="translate(320 20)">
+                <rect width="150" height="96"></rect>
+                <text x="12" y="24">3a. NVD Bridge</text>
+                <text class="kind" x="12" y="44">Inject NVD CWEs</text>
+                <text class="kind" x="12" y="60">Strip competing</text>
+                <text class="kind" x="12" y="76">CWE chunks</text>
               </g>
 
-              <!-- STAGE 4: CWE rerank stack -->
-              <g class="node capec" transform="translate(586 70)">
-                <rect width="180" height="96"></rect>
-                <text x="14" y="28">CWE rerank stack</text>
-                <text class="kind" x="14" y="50">phrase selector</text>
-                <text class="kind" x="14" y="68">cross-encoder (278M)</text>
-                <text class="kind" x="14" y="86">HyDE + CE filter (≥0.3)</text>
+              <!-- STAGE 4a: Context Assembly -->
+              <g class="node" transform="translate(500 30)">
+                <rect width="150" height="76"></rect>
+                <text x="12" y="24">4a. Context Assembly</text>
+                <text class="kind" x="12" y="44">NVD-bridged</text>
+                <text class="kind" x="12" y="60">context + prompt</text>
               </g>
 
-              <!-- STAGE 5: Runtime model router -->
-              <g class="node cve" transform="translate(806 80)">
-                <rect width="140" height="76"></rect>
-                <text x="14" y="28">Model router</text>
-                <text class="kind" x="14" y="49">mapped → Granite</text>
-                <text class="kind" x="14" y="65">unmapped → F-Sec</text>
+              <!-- STAGE 5a: Granite 4.1 8B -->
+              <g class="node mit" transform="translate(680 20)">
+                <rect width="150" height="96"></rect>
+                <text x="12" y="24">5a. Granite 4.1 8B</text>
+                <text class="kind" x="12" y="44">Fast Path LLM</text>
+                <text class="kind" x="12" y="60">Port 8001</text>
+                <text class="kind" x="12" y="76">Speed: ~85 tok/s</text>
+              </g>
+
+              <!-- ====== RIGHT COLUMN / UNMAPPED PATH ====== -->
+              <!-- STAGE 3b: HyDE + CE Filter -->
+              <g class="node attack" transform="translate(320 180)">
+                <rect width="150" height="96"></rect>
+                <text x="12" y="24">3b. HyDE + CE Filter</text>
+                <text class="kind" x="12" y="44">Hypothesis draft</text>
+                <text class="kind" x="12" y="60">Retrieve & filter</text>
+                <text class="kind" x="12" y="76">CE Score >= 0.3</text>
+              </g>
+
+              <!-- STAGE 4b: Graph & k-NN -->
+              <g class="node capec" transform="translate(500 180)">
+                <rect width="150" height="96"></rect>
+                <text x="12" y="24">4b. Graph & k-NN</text>
+                <text class="kind" x="12" y="44">2-hop expansion</text>
+                <text class="kind" x="12" y="60">k-NN CWE fallback</text>
+                <text class="kind" x="12" y="76">voting impute</text>
+              </g>
+
+              <!-- STAGE 5b: CE Reranking -->
+              <g class="node group" transform="translate(680 180)">
+                <rect width="150" height="96"></rect>
+                <text x="12" y="24">5b. CE Reranking</text>
+                <text class="kind" x="12" y="44">bge-reranker-base</text>
+                <text class="kind" x="12" y="60">Sort candidate</text>
+                <text class="kind" x="12" y="76">CWE chunks</text>
+              </g>
+
+              <!-- STAGE 6b: Foundation-Sec -->
+              <g class="node mit" transform="translate(860 180)">
+                <rect width="150" height="96"></rect>
+                <text x="12" y="24">6b. Foundation-Sec</text>
+                <text class="kind" x="12" y="44">Reasoning Path</text>
+                <text class="kind" x="12" y="60">Port 8000 (CoT)</text>
+                <text class="kind" x="12" y="76">Speed: ~24 tok/s</text>
+              </g>
+
+              <!-- STAGE 9: CWE-ID extraction -->
+              <g class="node capec" transform="translate(860 20)">
+                <rect width="150" height="76"></rect>
+                <text x="12" y="24">9. CWE Extraction</text>
+                <text class="kind" x="12" y="44">Post-LLM phrase</text>
+                <text class="kind" x="12" y="60">selector correction</text>
               </g>
 
               <!-- RESULT callout -->
-              <g class="node" transform="translate(966 70)" style="--node-fill:#1c2538;--node-text:#fff;">
-                <rect width="170" height="96" fill="#1c2538" stroke="#1c2538"></rect>
-                <text x="14" y="34" fill="#fff" style="font-size:22px;font-weight:760;">865 / 1000</text>
-                <text x="14" y="58" fill="#fff" style="font-size:14px;font-weight:600;">86.5% strict</text>
-                <text x="14" y="78" fill="#9ab3ff" style="font-size:11px;">+14.5pp vs GPT-4</text>
-                <text x="14" y="92" fill="#9ab3ff" style="font-size:11px;">mapped/unmapped route</text>
+              <g class="node" transform="translate(1030 40)" style="--node-fill:#1c2538;--node-text:#fff;">
+                <rect width="115" height="150" fill="#1c2538" stroke="#1c2538"></rect>
+                <text x="10" y="26" fill="#fff" style="font-size:16px;font-weight:760;">86.4% strict</text>
+                <text x="10" y="46" fill="#fff" style="font-size:11px;font-weight:600;">864 / 1000 total</text>
+                <path d="M10 58 L105 58" stroke="#5c667a" stroke-width="1"></path>
+                <text x="10" y="74" fill="#9ab3ff" style="font-size:11px;font-weight:700;">Fast Path:</text>
+                <text x="10" y="90" fill="#fff" style="font-size:11px;">87.7% (792/903)</text>
+                <text x="10" y="112" fill="#9ab3ff" style="font-size:11px;font-weight:700;">Reasoning:</text>
+                <text x="10" y="128" fill="#fff" style="font-size:11px;">74.2% (72/97)</text>
               </g>
 
               <!-- Bottom row: data sources -->
-              <g class="node attack" transform="translate(186 322)">
+              <g class="node attack" transform="translate(150 360)">
                 <rect width="180" height="86"></rect>
                 <text x="14" y="29">MITRE ATT&CK</text>
                 <text class="kind" x="14" y="52">groups, software</text>
                 <text class="kind" x="14" y="68">techniques, mitigations</text>
               </g>
 
-              <g class="node capec" transform="translate(386 322)">
+              <g class="node capec" transform="translate(380 360)">
                 <rect width="180" height="86"></rect>
                 <text x="14" y="29">CAPEC + CWE</text>
                 <text class="kind" x="14" y="52">Tech→CAPEC→CWE</text>
                 <text class="kind" x="14" y="68">official alternate_terms</text>
               </g>
 
-              <g class="node cve" transform="translate(736 322)">
+              <g class="node cve" transform="translate(680 360)">
                 <rect width="240" height="86"></rect>
                 <text x="14" y="29">NVD CVE database</text>
                 <text class="kind" x="14" y="52">150k mapped (CNA + ADP)</text>
                 <text class="kind" x="14" y="68">180k unmapped → k-NN target</text>
               </g>
 
-              <!-- Edge labels on pipeline arrows -->
-              <text class="edge-label" x="155" y="104">→</text>
-              <text class="edge-label" x="350" y="104">retrieve</text>
-              <text class="edge-label" x="550" y="104">inject</text>
-              <text class="edge-label" x="770" y="104">rerank</text>
-              <text class="edge-label" x="930" y="104">answer</text>
-
               <!-- Section labels -->
               <text x="30" y="44" style="font-size:12px;font-weight:700;fill:#5c667a;letter-spacing:1px;">INFERENCE PIPELINE (per query)</text>
-              <text x="30" y="298" style="font-size:12px;font-weight:700;fill:#5c667a;letter-spacing:1px;">DATA SOURCES (indexed once at startup)</text>
+              <text x="30" y="328" style="font-size:12px;font-weight:700;fill:#5c667a;letter-spacing:1px;">DATA SOURCES (indexed once at startup)</text>
             </svg>
           </div>
           <div class="footer">
@@ -939,7 +1006,7 @@
               <text x="34" y="256" text-anchor="middle" transform="rotate(-90 34 256)" fill="#18202f" font-size="18" font-weight="720">Accuracy (%)</text>
 
               <rect x="162" y="132" width="86" height="290" fill="#2d6cdf"></rect>
-              <text x="205" y="123" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">86.5</text>
+              <text x="205" y="123" text-anchor="middle" fill="#384052" font-size="13" font-weight="760">86.4</text>
               <text x="205" y="448" text-anchor="middle" fill="#18202f" font-size="14" font-weight="680">CTI-RAG</text>
               <text x="205" y="466" text-anchor="middle" fill="#5c667a" font-size="12" font-weight="620">routed RAG</text>
 
@@ -978,7 +1045,7 @@
           </div>
           <div class="footer">
             <div class="note"><strong>Task</strong>CTI-RCM maps a CVE vulnerability description to the correct CWE root-cause ID.</div>
-            <div class="note"><strong>Comparison</strong>Our 86.5% routed ensemble is compared to CTI-Bench paper baselines on the same CTI-RCM task.</div>
+            <div class="note"><strong>Comparison</strong>Our 86.4% routed ensemble is compared to CTI-Bench paper baselines on the same CTI-RCM task.</div>
             <div class="note"><strong>Caveat</strong>Our system uses retrieval over NVD/MITRE data; the paper model scores are memory-only baselines.</div>
           </div>
         </article>
@@ -987,7 +1054,7 @@
           <div class="slide-title">
             <div>
               <h2>CTI-RAG performance by NVD mapping status</h2>
-              <p>This split explains where the 86.5% routed ensemble comes from: mapped CVEs benefit from NVD structured CWE bridge lookup, while unmapped CVEs require description-based CWE inference.</p>
+              <p>This split explains where the 86.4% routed ensemble comes from: mapped CVEs benefit from NVD structured CWE bridge lookup, while unmapped CVEs require description-based CWE inference.</p>
             </div>
           </div>
           <div class="viz">
@@ -1019,20 +1086,20 @@
 
               <text x="48" y="256" text-anchor="middle" transform="rotate(-90 48 256)" fill="#18202f" font-size="18" font-weight="720">Accuracy (%)</text>
 
-              <rect x="242" y="132" width="132" height="290" fill="#2d6cdf"></rect>
-              <text x="308" y="121" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">86.5</text>
+              <rect x="242" y="133" width="132" height="289" fill="#2d6cdf"></rect>
+              <text x="308" y="121" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">86.4</text>
               <text x="308" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">All queries</text>
-              <text x="308" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">865 / 1000</text>
+              <text x="308" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">864 / 1000</text>
 
               <rect x="514" y="128" width="132" height="294" fill="#1f8f6f"></rect>
               <text x="580" y="117" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">87.7</text>
               <text x="580" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">NVD-mapped</text>
               <text x="580" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">792 / 903</text>
 
-              <rect x="786" y="170" width="132" height="252" fill="#b45f06"></rect>
-              <text x="852" y="159" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">75.3</text>
+              <rect x="786" y="173" width="132" height="249" fill="#b45f06"></rect>
+              <text x="852" y="159" text-anchor="middle" fill="#384052" font-size="15" font-weight="780">74.2</text>
               <text x="852" y="450" text-anchor="middle" fill="#18202f" font-size="16" font-weight="720">NVD-unmapped</text>
-              <text x="852" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">73 / 97</text>
+              <text x="852" y="471" text-anchor="middle" fill="#5c667a" font-size="13" font-weight="640">72 / 97</text>
             </svg>
           </div>
           <div class="footer">

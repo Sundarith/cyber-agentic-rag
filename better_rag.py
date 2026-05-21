@@ -39,6 +39,8 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 RCM_ONLY = _env_bool("CTI_RAG_RCM_ONLY", False)
+CWE_ONLY_RETRIEVAL = _env_bool("CTI_RAG_CWE_ONLY_RETRIEVAL", False)
+NVD_CWE_EVIDENCE_ENABLED = _env_bool("CTI_RAG_NVD_CWE_EVIDENCE", True)
 LLM_ENDPOINT = "http://localhost:8000/v1/chat/completions"   # vLLM OpenAI-compatible API
 MODEL        = "Qwen/Qwen2.5-7B-Instruct"
 LLM_ROUTER_ENABLED = _env_bool("CTI_RAG_LLM_ROUTER", False)
@@ -79,8 +81,11 @@ TOP_K        = 8
 _EMB_CACHE_SUFFIX = "_t-raft" if EMBEDDER != "BAAI/bge-small-en-v1.5" else ""
 if RCM_ONLY:
     _EMB_CACHE_SUFFIX += "_rcm-only"
+if CWE_ONLY_RETRIEVAL:
+    _EMB_CACHE_SUFFIX += "_cwe-only"
 EMB_CACHE    = (Path(f"data/processed/chunk_embs_augmented{_EMB_CACHE_SUFFIX}.npy")
                 if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_EMB_CACHE_SUFFIX}.npy"))
+KNN_CWE_ENABLED = os.environ.get("CTI_RAG_KNN_CWE_ENABLED", "1") == "1"
 KNN_CWE_NEIGHBORS = int(os.environ.get("CTI_RAG_KNN_CWE_NEIGHBORS", "5"))
 KNN_CONFIDENCE_THRESHOLD = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_THRESHOLD", "0.90"))
 KNN_CONFIDENCE_MARGIN = float(os.environ.get("CTI_RAG_KNN_CONFIDENCE_MARGIN", "1.50"))
@@ -188,11 +193,21 @@ if not RCM_ONLY and CAPEC_CHUNKS.exists():
     chunks += [json.loads(line) for line in CAPEC_CHUNKS.open()]
 if CWE_CHUNKS.exists():
     chunks += [json.loads(line) for line in CWE_CHUNKS.open()]
-if CVE_CHUNKS.exists():
+if CVE_CHUNKS.exists() and not CWE_ONLY_RETRIEVAL:
     chunks += [json.loads(line) for line in CVE_CHUNKS.open()]
 print(f"  {len(chunks)} chunks loaded")
 if RCM_ONLY:
     print("  RCM-only mode: loaded CVE + CWE chunks; skipped ATT&CK + CAPEC")
+if CWE_ONLY_RETRIEVAL:
+    print("  CWE-only retrieval mode: skipped CVE chunks")
+if not NVD_CWE_EVIDENCE_ENABLED:
+    stripped = 0
+    for c in chunks:
+        if c.get("source") == "CVE" and c.get("cwe_ids"):
+            c["cwe_ids_disabled"] = c.get("cwe_ids", [])
+            c["cwe_ids"] = []
+            stripped += 1
+    print(f"  NVD CWE evidence disabled: stripped structured cwe_ids from {stripped:,} CVE chunks")
 
 print("Building reverse indexes for groups / malware / tools / campaigns...")
 _OBS_RE      = re.compile(r'\n## Observed in the Wild\n(.+?)(?=\n## |\Z)', re.DOTALL)
@@ -493,8 +508,9 @@ if EMB_CACHE.exists():
     else:
         print("  Loaded from cache.")
 else:
-    full_cache = (Path(f"data/processed/chunk_embs_augmented{_EMB_CACHE_SUFFIX.replace('_rcm-only', '')}.npy")
-                  if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_EMB_CACHE_SUFFIX.replace('_rcm-only', '')}.npy"))
+    _full_cache_suffix = _EMB_CACHE_SUFFIX.replace("_rcm-only", "").replace("_cwe-only", "")
+    full_cache = (Path(f"data/processed/chunk_embs_augmented{_full_cache_suffix}.npy")
+                  if _CWE_AUGMENTED_ENV else Path(f"data/processed/chunk_embs{_full_cache_suffix}.npy"))
     if RCM_ONLY and full_cache.exists():
         attack_n = sum(1 for _ in ATTACK_CHUNKS.open()) if ATTACK_CHUNKS.exists() else 0
         capec_n = sum(1 for _ in CAPEC_CHUNKS.open()) if CAPEC_CHUNKS.exists() else 0
@@ -1562,7 +1578,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # confidence stays as a soft hint (inject without stripping).
     if _t is not None:
         _t["knn_start"] = time.time()
-    if not bridge_fired and _mapped_cve_indices.size:
+    if KNN_CWE_ENABLED and not bridge_fired and _mapped_cve_indices.size:
         q_emb_knn = _get_embedder().encode([question], normalize_embeddings=True, convert_to_numpy=True)[0]
         mapped_sims = chunk_embs[_mapped_cve_indices] @ q_emb_knn
         top_n = max(1, min(KNN_CWE_NEIGHBORS, _mapped_cve_indices.size))
