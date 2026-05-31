@@ -1,52 +1,39 @@
-\documentclass[conference]{IEEEtran}
-\IEEEoverridecommandlockouts
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
+\documentclass[conference,compsoc]{IEEEtran}
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
-\definecolor{linkblue}{rgb}{0.10,0.40,0.75}
-\usepackage{url}
-\usepackage[colorlinks=true,
-            citecolor=linkblue,
-            linkcolor=linkblue,
-            urlcolor=linkblue]{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{multirow}
-\usepackage{balance}
+\usepackage{comment}
+\newcommand{\linebreakand}{%
+  \end{@IEEEauthorhalign}
+  \hfill\mbox{}\par
+  \mbox{}\hfill\begin{@IEEEauthorhalign}
+}
 
 \newcommand{\tightlist}{}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
 \begin{document}
 
-\title{Graph-Augmented Hybrid RAG for Automated CVE-to-CWE Root-Cause Mapping}
+\title{Graph-Augmented Hybrid RAG for CVE-to-CWE Mapping with Compact Open Large Language Models}
 
-\author{
-\IEEEauthorblockN{Sundarith Heng}
-\IEEEauthorblockA{\textit{Department of Computer Science} \\
-\textit{Angelo State University}\\
-San Angelo, TX, USA}
-\and
-\IEEEauthorblockN{Erdogan Dogdu}
-\IEEEauthorblockA{\textit{Department of Computer Science} \\
-\textit{Angelo State University}\\
-San Angelo, TX, USA}
-\and
-\IEEEauthorblockN{Roya Choupani}
-\IEEEauthorblockA{\textit{Department of Computer Science} \\
-\textit{Angelo State University}\\
-San Angelo, TX, USA}
-}
+\author{}
 
 \maketitle
 
 \begin{abstract}
-Mapping Common Vulnerabilities and Exposures (CVE) records to root-cause Common Weakness Enumeration (CWE) categories supports vulnerability triage, remediation planning, and security analytics, but strong performance often depends on proprietary models or task-specific fine-tuning. We present a Graph-Augmented Hybrid RAG system that pairs 8B-class open-source language models with a multi-stage retrieval pipeline over two public knowledge sources: the NIST National Vulnerability Database and the official CWE corpus. The pipeline combines BM25 and dense hybrid retrieval, structured CVE-to-CWE bridge injection, weighted nearest-neighbor CWE voting, cross-encoder reranking, and Hypothetical Document Embedding (HyDE) candidate expansion with cross-encoder filtering. On the 1,000-query CTI-Bench RCM benchmark, a deterministic routed ensemble that assigns NVD-mapped CVEs to IBM Granite 4.1 8B and NVD-unmapped CVEs to Cisco Foundation-Sec-8B-Reasoning reaches 86.4\% strict accuracy (864/1000). This surpasses the strongest published open-source specialist baseline of 75.6\% by 10.8 percentage points and exceeds GPT-4 (72.0\%), the published no-retrieval frontier anchor for this benchmark, by 14.4 percentage points. The result shows that carefully structured public retrieval can make small local models competitive with closed cybersecurity systems on CVE-to-CWE root-cause mapping, without fine-tuning the final-answer models.
+Mapping Common Vulnerabilities and Exposures (CVE) records to root-cause Common Weakness Enumeration (CWE) categories supports vulnerability triage, remediation planning, and security analytics. State-of-the-art results on this task have so far come from proprietary frontier models, models with extensive cybersecurity continued pre-training, or task-specific fine-tuned classifiers---each of which constrains reproducibility, local deployment, or methodological clarity. We present a Graph-Augmented Hybrid RAG system that pairs a single compact off-the-shelf open-source language model---with no cybersecurity-domain training and no task-specific fine-tuning---with a multi-stage retrieval pipeline over two public knowledge sources: the NIST National Vulnerability Database and the official CWE corpus. The pipeline combines BM25 and dense hybrid retrieval, structured CVE-to-CWE bridge injection from NVD weakness fields, weighted nearest-neighbor CWE voting over the mapped corpus, and BGE-Reranker-Base cross-encoder reranking. On CTI-Bench RCM, the system reaches 90.9\% strict accuracy and simultaneously surpasses every leading reference point on this task: GPT-4 (72.0\%, the published no-retrieval frontier anchor) by 18.9 percentage points, Cisco's cybersecurity-continued-pretrained Foundation-Sec-8B-R (75.3\%) by 15.6 percentage points, the strongest published open-source task-specific fine-tuned classifier (75.6\%) by 15.3 percentage points, and Google's closed cybersecurity-specialized Sec-Gemini v1 ($\sim$86\%). This headline decomposes into 92.7\% on the 903 NVD-mapped CVEs and 74.2\% on the 97 NVD-unmapped CVEs where no structured CWE lookup is available. The shipped primary model uses less than half the parameter count of every other open-source baseline on the leaderboard, and the full system runs locally on consumer GPUs. To establish that the result is carried by the retrieval pipeline rather than any LLM-side cybersecurity capability, we measure zero-shot vs.\ with-RAG accuracy for four open-source compact models spanning entirely different post-training regimes---reasoning distillation, RAG-tuned instruction following, and thinking-enabled instruction following---none with cybersecurity continued pre-training or task-specific fine-tuning. Their zero-shot accuracy spans 17.9\% to 69.6\%; under the same retrieval pipeline and the same benchmark-clean prompt they all converge to 82.1\% to 90.9\%, with RAG contributing between +20.7 and +73.0 percentage points per model. Every paired-with-RAG configuration exceeds GPT-4 by at least 10.0 percentage points and the strongest open-source fine-tuned specialist by at least 6.4 percentage points. The retrieval pipeline---not LLM cybersecurity specialization, reasoning post-training, or task fine-tuning---is the load-bearing component of the system.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -55,7 +42,6 @@ cyber threat intelligence, CVE, CWE, retrieval-augmented generation, hybrid retr
 
 \input{body}
 
-\balance
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
