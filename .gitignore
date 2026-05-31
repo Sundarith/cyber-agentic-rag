@@ -28,16 +28,22 @@ docs/
 # Local eval/debug outputs
 eval_*.log
 eval_*_debug.jsonl
+analysis/*_eval_failures_debug.jsonl
+analysis/*_context_failures_*.jsonl
 
 # Long-running training artifacts and caches
 data/processed/chunk_embs_*.npy
 data/processed/t_raft_*.jsonl*
+data/processed/ce_triplets_*.jsonl
 data/models/
 logs/
 wandb/
 unsloth_compiled_cache/
 checkpoints/
 .claude/
+
+# Third-party local checkouts
+tools/
 
 # OS
 .DS_Store
