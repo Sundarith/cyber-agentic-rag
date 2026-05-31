@@ -25,6 +25,9 @@ PLAN.md
 RESEARCH.md
 docs/
 
+# Paper/presentation deliverables — research artifacts, not project code
+presentation/
+
 # Local eval/debug outputs
 eval_*.log
 eval_*_debug.jsonl
