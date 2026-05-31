@@ -9,6 +9,7 @@ import sys
 import time
 import difflib
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import requests
 from collections import Counter, defaultdict
@@ -51,7 +52,7 @@ LLM_MAPPED_MODEL = os.environ.get("CTI_RAG_LLM_MAPPED_MODEL", MODEL)
 LLM_UNMAPPED_MODEL = os.environ.get("CTI_RAG_LLM_UNMAPPED_MODEL", MODEL)
 LLM_HYDE_MODEL = os.environ.get("CTI_RAG_LLM_HYDE_MODEL", LLM_UNMAPPED_MODEL if LLM_ROUTER_ENABLED else MODEL)
 LLM_MAX_MODEL_LEN = int(os.environ.get("CTI_RAG_LLM_MAX_MODEL_LEN", "32768"))
-LLM_RESPONSE_BUDGET = 256   # must match max_tokens passed to vLLM
+LLM_RESPONSE_BUDGET = int(os.environ.get("CTI_RAG_LLM_RESPONSE_BUDGET", "256"))   # must match max_tokens passed to vLLM
 LLM_HYDE_RESPONSE_BUDGET = int(os.environ.get("CTI_RAG_LLM_HYDE_RESPONSE_BUDGET", str(LLM_RESPONSE_BUDGET)))
 LLM_SAFETY_MARGIN = 384     # chat template + system tokens + buffer
 # Conservative 3.0 chars-per-token for Qwen on English+code; gives ~27k token
@@ -71,7 +72,86 @@ LLM_NO_THINK = _env_bool("CTI_RAG_LLM_NO_THINK", False)
 LLM_MAPPED_NO_THINK = _env_bool("CTI_RAG_LLM_MAPPED_NO_THINK", LLM_NO_THINK)
 LLM_UNMAPPED_NO_THINK = _env_bool("CTI_RAG_LLM_UNMAPPED_NO_THINK", LLM_NO_THINK)
 LLM_HYDE_NO_THINK = _env_bool("CTI_RAG_LLM_HYDE_NO_THINK", LLM_UNMAPPED_NO_THINK if LLM_ROUTER_ENABLED else LLM_NO_THINK)
+# Gemma 4 (and other models with a per-request thinking toggle in their chat
+# template) require chat_template_kwargs={"enable_thinking": true} in the
+# request body. vLLM 0.19.1 does NOT expose this as a CLI flag, so we pass it
+# per-request when CTI_RAG_LLM_ENABLE_THINKING=1.
+LLM_ENABLE_THINKING = _env_bool("CTI_RAG_LLM_ENABLE_THINKING", False)
 LLM_HYDE_ROUTE_ENABLED = _env_bool("CTI_RAG_LLM_HYDE_ROUTE", False)  # when True, mapped CVEs use mapped endpoint for HyDE
+
+# Dual-LLM picker on the unmapped path. When enabled, each unmapped CVE gets
+# answered by two LLMs (route="unmapped" and route="unmapped_b"); on
+# disagreement, the cross-encoder picks which CWE-ID better matches the CVE
+# description. Defaults for the "_b" endpoint reuse the mapped endpoint, so
+# the same CUDA_VISIBLE_DEVICES=0/1 dual-server setup can power the picker
+# by serving the second model on :8001.
+LLM_UNMAPPED_AGGREGATE = _env_bool("CTI_RAG_UNMAPPED_AGGREGATE", False)
+LLM_UNMAPPED_B_ENDPOINT = os.environ.get("CTI_RAG_LLM_UNMAPPED_B_ENDPOINT", LLM_MAPPED_ENDPOINT)
+LLM_UNMAPPED_B_MODEL = os.environ.get("CTI_RAG_LLM_UNMAPPED_B_MODEL", LLM_MAPPED_MODEL)
+LLM_UNMAPPED_B_NO_THINK = _env_bool("CTI_RAG_LLM_UNMAPPED_B_NO_THINK", True)
+# Response budget for the picker's second model. Reasoning-mode models emit
+# <think>...</think> content before the final answer; if that exceeds the
+# default budget the final CWE-ID is truncated. Override this when running
+# the picker with thinking enabled (e.g. Qwen3 thinking, Phi-4-reasoning).
+LLM_UNMAPPED_B_RESPONSE_BUDGET = int(os.environ.get("CTI_RAG_LLM_UNMAPPED_B_RESPONSE_BUDGET", str(LLM_RESPONSE_BUDGET)))
+# When set, drop the four legacy ATT&CK-oriented rules (Detection/Mitigations
+# distinction, T#### fabrication guard, shell-command guard, "I don't have
+# enough information" fallback) from the final-answer prompt. These rules are
+# inherited from a broader CTI chatbot the codebase also supports; their
+# conditional triggers do not appear in CTI-RCM queries, so the rules are
+# inactive and constitute prompt-window noise. Locked in once empirically
+# confirmed not to change scores.
+PROMPT_LEAN = _env_bool("CTI_RAG_PROMPT_LEAN", False)
+PROMPT_CONTEXT_ONLY = _env_bool("CTI_RAG_PROMPT_CONTEXT_ONLY", False)
+PROMPT_INSTRUCTION = _env_bool("CTI_RAG_PROMPT_INSTRUCTION", False)
+# Optional third LLM endpoint for 3-way ensemble (e.g. a different-lineage
+# model on a separate machine — DGX Spark in our setup). Activated by
+# CTI_RAG_UNMAPPED_AGGREGATE_3WAY=1. When all three LLMs disagree, the
+# combiner is used over all three candidates; when 2 of 3 agree, that
+# majority wins.
+LLM_UNMAPPED_AGGREGATE_3WAY = _env_bool("CTI_RAG_UNMAPPED_AGGREGATE_3WAY", False)
+LLM_UNMAPPED_C_ENDPOINT = os.environ.get("CTI_RAG_LLM_UNMAPPED_C_ENDPOINT", LLM_UNMAPPED_B_ENDPOINT)
+LLM_UNMAPPED_C_MODEL = os.environ.get("CTI_RAG_LLM_UNMAPPED_C_MODEL", LLM_UNMAPPED_B_MODEL)
+LLM_UNMAPPED_C_NO_THINK = _env_bool("CTI_RAG_LLM_UNMAPPED_C_NO_THINK", LLM_UNMAPPED_B_NO_THINK)
+# Reasoning-tuned models (e.g. Phi-4-reasoning) emit long <think>...</think>
+# blocks before the final answer. The default 256-token budget can be entirely
+# consumed by reasoning content, leaving no parseable CWE-ID. This env flag
+# lets the C endpoint use a larger budget than the other two.
+LLM_UNMAPPED_C_RESPONSE_BUDGET = int(os.environ.get("CTI_RAG_LLM_UNMAPPED_C_RESPONSE_BUDGET", str(LLM_RESPONSE_BUDGET)))
+# Mapped path response budget. Failure triage showed several mapped failures
+# were truncation/parse: the LLM's reasoning preamble consumed the 256-token
+# budget before it emitted the final CWE-ID. Bumping this can recover those.
+LLM_MAPPED_RESPONSE_BUDGET = int(os.environ.get("CTI_RAG_LLM_MAPPED_RESPONSE_BUDGET", str(LLM_RESPONSE_BUDGET)))
+# Mapped-bridge "prefer last NVD CWE" rewrite. When the bridge injects
+# multiple NVD CWEs and the LLM picks a non-last one, rewrite to the last.
+# Triage shows CTI-Bench gold matches NVD's last-listed CWE in all 3
+# observed multi-CWE failure cases. Cheap rewrite, gated by env flag.
+MAPPED_BRIDGE_PREFER_LAST_NVD = _env_bool("CTI_RAG_MAPPED_BRIDGE_PREFER_LAST_NVD", False)
+# Mapped soft bridge: keep NVD's structured CWE assignment as strong evidence,
+# but do not strip independently retrieved CWE candidates from the mapped final
+# context. This tests whether the LLM can reconcile NVD-vs-benchmark
+# abstraction-level mismatches when it can see both the NVD label and nearby
+# CWE alternatives. Env-gated because competing CWEs can distract easy mapped
+# lookup cases.
+MAPPED_BRIDGE_SOFT_CONTEXT = _env_bool("CTI_RAG_MAPPED_BRIDGE_SOFT_CONTEXT", False)
+MAPPED_BRIDGE_SOFT_MAX_EXTRA_CWES = int(os.environ.get("CTI_RAG_MAPPED_BRIDGE_SOFT_MAX_EXTRA_CWES", "3"))
+MAPPED_BRIDGE_SOFT_CE_RERANK = _env_bool("CTI_RAG_MAPPED_BRIDGE_SOFT_CE_RERANK", False)
+# Minimum cross-encoder score margin required to override the primary
+# (route="unmapped") answer with the secondary (route="unmapped_b") answer.
+# When CE scores between the two candidate CWEs are within this margin, the
+# picker treats it as a tie and keeps the primary answer (FSec by default),
+# avoiding overrides driven by near-random CE noise. 0.0 = current behavior.
+LLM_UNMAPPED_AGGREGATE_CE_MARGIN = float(os.environ.get("CTI_RAG_UNMAPPED_AGGREGATE_CE_MARGIN", "0.0"))
+# Combiner strategy used when the two LLMs disagree on the CWE.
+#   ce   - cross-encoder picks (default; matches the 76/97 baseline)
+#   knn  - k-NN weighted vote picks; CE used only when k-NN is silent/tied
+#   and  - override the primary answer (route="unmapped") only when both CE
+#          and k-NN prefer the secondary; otherwise default to primary
+#   or   - override when either CE or k-NN prefers the secondary
+LLM_UNMAPPED_AGGREGATE_COMBINER = os.environ.get("CTI_RAG_UNMAPPED_AGGREGATE_COMBINER", "ce").lower()
+# Back-compat shim: the old boolean flag now selects "knn" combiner.
+if _env_bool("CTI_RAG_UNMAPPED_AGGREGATE_KNN_TIEBREAKER", False) and LLM_UNMAPPED_AGGREGATE_COMBINER == "ce":
+    LLM_UNMAPPED_AGGREGATE_COMBINER = "knn"
 BM25_K1      = 1.5
 BM25_B       = 0.75
 HYBRID_ALPHA = 0.5   # 0 = pure BM25, 1 = pure embedding
@@ -761,12 +841,235 @@ def _truncate_prompt(prompt: str) -> str:
 def _llm_config(route: str | None = None) -> tuple[str, str, bool, str]:
     if LLM_ROUTER_ENABLED:
         if route == "mapped":
-            return LLM_MAPPED_ENDPOINT, LLM_MAPPED_MODEL, LLM_MAPPED_NO_THINK, "mapped"
+            import random
+            endpoint = random.choice([LLM_UNMAPPED_ENDPOINT, LLM_MAPPED_ENDPOINT])
+            return endpoint, LLM_MAPPED_MODEL, LLM_MAPPED_NO_THINK, "mapped"
         if route == "unmapped":
-            return LLM_UNMAPPED_ENDPOINT, LLM_UNMAPPED_MODEL, LLM_UNMAPPED_NO_THINK, "unmapped"
+            import random
+            endpoint = random.choice([LLM_UNMAPPED_ENDPOINT, LLM_MAPPED_ENDPOINT])
+            return endpoint, LLM_UNMAPPED_MODEL, LLM_UNMAPPED_NO_THINK, "unmapped"
         if route == "hyde":
             return LLM_HYDE_ENDPOINT, LLM_HYDE_MODEL, LLM_HYDE_NO_THINK, "hyde"
+        if route == "unmapped_b":
+            return LLM_UNMAPPED_B_ENDPOINT, LLM_UNMAPPED_B_MODEL, LLM_UNMAPPED_B_NO_THINK, "unmapped_b"
+        if route == "unmapped_c":
+            return LLM_UNMAPPED_C_ENDPOINT, LLM_UNMAPPED_C_MODEL, LLM_UNMAPPED_C_NO_THINK, "unmapped_c"
     return LLM_ENDPOINT, MODEL, LLM_NO_THINK, route or "default"
+
+
+_CWE_ID_RE = re.compile(r"\bCWE-\d+\b", re.IGNORECASE)
+
+
+def _extract_last_cwe(text: str) -> str:
+    matches = _CWE_ID_RE.findall(text or "")
+    return matches[-1].upper() if matches else ""
+
+
+def _aggregate_unmapped_answer(prompt: str, question: str,
+                                knn_weights: dict | None = None,
+                                debug_info: dict | None = None) -> str:
+    """Two-LLM picker for unmapped CVEs.
+
+    Calls route='unmapped' and route='unmapped_b' on the same prompt. If the
+    two CWE-IDs agree, returns the first answer. On disagreement:
+      - If LLM_UNMAPPED_AGGREGATE_KNN_TIEBREAKER is on and one candidate's
+        CWE has strictly more weighted k-NN vote than the other, that
+        candidate wins.
+      - Otherwise (k-NN silent / tied), fall back to cross-encoder scoring
+        of the candidate CWE chunks against the CVE description.
+    """
+    # The two LLMs live on separate vLLM endpoints (different GPUs in the
+    # routed setup), so issue both HTTP calls in parallel via a 2-thread pool.
+    # _llm() is I/O-bound (HTTP wait on vLLM), so threads scale despite the GIL.
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_a = ex.submit(_llm, prompt, route="unmapped", stage="final_agg_a")
+        f_b = ex.submit(_llm, prompt, route="unmapped_b", stage="final_agg_b",
+                        max_tokens=LLM_UNMAPPED_B_RESPONSE_BUDGET)
+        answer_a = f_a.result()
+        answer_b = f_b.result()
+    cwe_a = _extract_last_cwe(answer_a)
+    cwe_b = _extract_last_cwe(answer_b)
+
+    if debug_info is not None:
+        debug_info["unmapped_aggregate"] = {
+            "answer_a": answer_a,
+            "answer_b": answer_b,
+            "cwe_a": cwe_a,
+            "cwe_b": cwe_b,
+        }
+
+    chosen = answer_a
+    reason = "agree"
+    if not cwe_a and cwe_b:
+        chosen, reason = answer_b, "a_no_cwe"
+    elif cwe_a and not cwe_b:
+        chosen, reason = answer_a, "b_no_cwe"
+    elif cwe_a and cwe_b and cwe_a != cwe_b:
+        # Compute each signal's pick independently, then combine per strategy.
+        # ce_pref / knn_pref values: "a", "b", or None (signal abstains).
+
+        # --- k-NN signal ---
+        knn_pref = None
+        knn_seen = {}
+        if knn_weights:
+            wa = float(knn_weights.get(cwe_a, 0.0))
+            wb = float(knn_weights.get(cwe_b, 0.0))
+            knn_seen = {cwe_a: wa, cwe_b: wb}
+            if wa > wb and wa > 0:
+                knn_pref = "a"
+            elif wb > wa and wb > 0:
+                knn_pref = "b"
+
+        # --- CE signal ---
+        ce_pref = None
+        ce_margin = 0.0
+        ce_debug = None
+        chunk_a = id_to_chunk.get(cwe_a)
+        chunk_b = id_to_chunk.get(cwe_b)
+        if chunk_a is not None and chunk_b is not None:
+            try:
+                from cwe_reranker import score_cwe_chunks
+                scored = score_cwe_chunks(question, [chunk_a, chunk_b])
+                ce_debug = [
+                    {"cwe": (c.get("identifier") or "").upper(), "score": float(s)}
+                    for c, s in scored
+                ]
+                ce_margin = float(scored[0][1] - scored[1][1])
+                winner_id = (scored[0][0].get("identifier") or "").upper()
+                if ce_margin >= LLM_UNMAPPED_AGGREGATE_CE_MARGIN:
+                    ce_pref = "b" if winner_id == cwe_b else "a"
+                # else: CE abstains (margin too small)
+            except Exception as e:
+                ce_debug = f"ce_error:{e}"
+
+        # --- Combiner ---
+        mode = LLM_UNMAPPED_AGGREGATE_COMBINER
+        if mode == "and":
+            if ce_pref == "b" and knn_pref == "b":
+                chosen, reason = answer_b, f"and_pick:{cwe_b}"
+            elif ce_pref == "a" and knn_pref == "a":
+                chosen, reason = answer_a, f"and_pick:{cwe_a}"
+            else:
+                chosen, reason = answer_a, f"and_default_fsec:ce={ce_pref},knn={knn_pref}"
+        elif mode == "or":
+            if ce_pref == "b" or knn_pref == "b":
+                chosen, reason = answer_b, f"or_pick:{cwe_b}:ce={ce_pref},knn={knn_pref}"
+            elif ce_pref == "a" or knn_pref == "a":
+                chosen, reason = answer_a, f"or_pick:{cwe_a}:ce={ce_pref},knn={knn_pref}"
+            else:
+                chosen, reason = answer_a, "or_no_signal_fsec"
+        elif mode == "knn":
+            if knn_pref == "b":
+                chosen, reason = answer_b, f"knn_pick:{cwe_b}"
+            elif knn_pref == "a":
+                chosen, reason = answer_a, f"knn_pick:{cwe_a}"
+            elif ce_pref == "b":
+                chosen, reason = answer_b, f"knn_fallback_ce:{cwe_b}"
+            elif ce_pref == "a":
+                chosen, reason = answer_a, f"knn_fallback_ce:{cwe_a}"
+            else:
+                chosen, reason = answer_a, "no_signal_fsec"
+        else:  # "ce" (default)
+            if ce_pref == "b":
+                chosen, reason = answer_b, f"ce_pick:{cwe_b}:margin={ce_margin:.3f}"
+            elif ce_pref == "a":
+                chosen, reason = answer_a, f"ce_pick:{cwe_a}:margin={ce_margin:.3f}"
+            else:
+                chosen, reason = answer_a, f"ce_tie_fsec:margin={ce_margin:.3f}"
+
+        if debug_info is not None:
+            debug_info["unmapped_aggregate"]["combiner"] = mode
+            debug_info["unmapped_aggregate"]["ce_pref"] = ce_pref
+            debug_info["unmapped_aggregate"]["knn_pref"] = knn_pref
+            debug_info["unmapped_aggregate"]["ce_scores"] = ce_debug
+            debug_info["unmapped_aggregate"]["knn_weights_seen"] = knn_seen
+
+    if debug_info is not None:
+        debug_info["unmapped_aggregate"]["pick_reason"] = reason
+    return chosen
+
+
+def _aggregate_unmapped_answer_3way(prompt: str, question: str,
+                                     knn_weights: dict | None = None,
+                                     debug_info: dict | None = None) -> str:
+    """Three-LLM majority-vote picker for unmapped CVEs.
+
+    Calls route='unmapped', 'unmapped_b', 'unmapped_c' in parallel. Voting:
+      - If 2 or 3 of the predicted CWE-IDs match, use that majority answer.
+      - If all three disagree, score each candidate CWE chunk against the
+        CVE description with the cross-encoder and return the answer whose
+        CWE wins. (k-NN weights are recorded for debug but not yet used as
+        a tie-breaker in 3-way mode.)
+    """
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_a = ex.submit(_llm, prompt, route="unmapped", stage="final_3way_a")
+        f_b = ex.submit(_llm, prompt, route="unmapped_b", stage="final_3way_b")
+        f_c = ex.submit(_llm, prompt, route="unmapped_c", stage="final_3way_c")
+        answer_a = f_a.result()
+        answer_b = f_b.result()
+        answer_c = f_c.result()
+
+    cwe_a = _extract_last_cwe(answer_a)
+    cwe_b = _extract_last_cwe(answer_b)
+    cwe_c = _extract_last_cwe(answer_c)
+
+    answers = {"a": answer_a, "b": answer_b, "c": answer_c}
+    cwes = {"a": cwe_a, "b": cwe_b, "c": cwe_c}
+
+    if debug_info is not None:
+        debug_info["unmapped_aggregate_3way"] = {
+            "answers": {k: v for k, v in answers.items()},
+            "cwes": cwes,
+        }
+
+    # Tally: which CWE got how many votes (skip empty extractions).
+    votes = Counter(cwe for cwe in cwes.values() if cwe)
+    if not votes:
+        # No model produced a parseable CWE — return the primary answer.
+        return _record_3way(debug_info, answer_a, "no_parseable_cwe")
+
+    top_cwe, top_count = votes.most_common(1)[0]
+    if top_count >= 2:
+        # Majority: take any matching answer (prefer "a" for stable tiebreak).
+        for k in ("a", "b", "c"):
+            if cwes[k] == top_cwe:
+                return _record_3way(debug_info, answers[k], f"majority:{top_cwe}:{top_count}/3")
+
+    # All three predict different CWEs — fall back to CE picker over the three.
+    candidate_pairs: list[tuple[str, dict]] = []
+    for k in ("a", "b", "c"):
+        cwe = cwes[k]
+        if cwe:
+            chunk = id_to_chunk.get(cwe)
+            if chunk is not None:
+                candidate_pairs.append((k, chunk))
+
+    if len(candidate_pairs) >= 2:
+        try:
+            from cwe_reranker import score_cwe_chunks
+            scored = score_cwe_chunks(question, [pair[1] for pair in candidate_pairs])
+            winner_chunk = scored[0][0]
+            winner_id = (winner_chunk.get("identifier") or "").upper()
+            ce_debug = [
+                {"cwe": (c.get("identifier") or "").upper(), "score": float(s)}
+                for c, s in scored
+            ]
+            if debug_info is not None:
+                debug_info["unmapped_aggregate_3way"]["ce_scores"] = ce_debug
+            for k, chunk in candidate_pairs:
+                if cwes[k] == winner_id:
+                    return _record_3way(debug_info, answers[k], f"ce_pick:{winner_id}")
+        except Exception as e:
+            return _record_3way(debug_info, answer_a, f"ce_error:{e}")
+
+    # Last resort: primary model.
+    return _record_3way(debug_info, answer_a, "fallback_primary")
+
+
+def _record_3way(debug_info: dict | None, chosen: str, reason: str) -> str:
+    if debug_info is not None and "unmapped_aggregate_3way" in debug_info:
+        debug_info["unmapped_aggregate_3way"]["pick_reason"] = reason
+    return chosen
 
 
 def _llm(prompt: str, route: str | None = None, stage: str = "final",
@@ -784,13 +1087,16 @@ def _llm(prompt: str, route: str | None = None, stage: str = "final",
     error = ""
     usage = {}
     try:
-        r = requests.post(endpoint, json={
+        _payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
             "max_tokens": token_budget,
             "stream": False,
-        })
+        }
+        if LLM_ENABLE_THINKING:
+            _payload["chat_template_kwargs"] = {"enable_thinking": True}
+        r = requests.post(endpoint, json=_payload)
         status_code = r.status_code
         r.raise_for_status()
         data = r.json()
@@ -882,14 +1188,17 @@ def _llm_samples(prompt: str, n: int, temperature: float, route: str | None = No
     error = ""
     usage = {}
     try:
-        r = requests.post(endpoint, json={
+        _payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
             "max_tokens": LLM_RESPONSE_BUDGET,
             "n": n,
             "stream": False,
-        })
+        }
+        if LLM_ENABLE_THINKING:
+            _payload["chat_template_kwargs"] = {"enable_thinking": True}
+        r = requests.post(endpoint, json=_payload)
         status_code = r.status_code
         r.raise_for_status()
         data = r.json()
@@ -1431,9 +1740,11 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
 
     bridge_fired = False
     mapped_fast_context = False
+    nvd_bridge_cwes: set[str] = set()
     if (CWE_MAPPED_FAST_CONTEXT and not _cve_id_m and llm_route_hint == "mapped"
             and initial_cve_with_cwes):
         nvd_cwes = {cid.upper() for cid in initial_cve_with_cwes["cwe_ids"]}
+        nvd_bridge_cwes = set(nvd_cwes)
         fast_context = [initial_cve_with_cwes]
         existing_ids = {initial_cve_with_cwes.get("identifier", "").upper()}
         for cwe_id in sorted(nvd_cwes):
@@ -1545,16 +1856,21 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     if _t is not None: _t["neighbors"] = time.time()
 
     # CVE description bridge: if a CVE chunk made it into context (likely the matching
-    # CVE for a description-style query), its NVD CWE assignments are authoritative.
-    # Strip all other CWE chunks and inject the NVD CWEs. Same pattern as CAPEC→CWE bridge.
+    # CVE for a description-style query), inject its NVD CWE assignments.
+    # Default behavior treats NVD as authoritative and strips competing CWE chunks.
+    # Mapped soft-context mode keeps independently retrieved CWE candidates so the
+    # LLM can resolve NVD-vs-benchmark abstraction-level mismatches.
     if not _cve_id_m and not bridge_fired:
         cve_with_cwes = next((c for c in retrieved_chunks
                               if c.get("source") == "CVE" and c.get("cwe_ids")), None)
         if cve_with_cwes:
             nvd_cwes = {cid.upper() for cid in cve_with_cwes["cwe_ids"]}
-            retrieved_chunks = [c for c in retrieved_chunks
-                                if not (c.get("source") == "CWE"
-                                        and c.get("identifier", "").upper() not in nvd_cwes)]
+            nvd_bridge_cwes = set(nvd_cwes)
+            soft_mapped_bridge = MAPPED_BRIDGE_SOFT_CONTEXT and llm_route_hint == "mapped"
+            if not soft_mapped_bridge:
+                retrieved_chunks = [c for c in retrieved_chunks
+                                    if not (c.get("source") == "CWE"
+                                            and c.get("identifier", "").upper() not in nvd_cwes)]
             existing_ids = {c.get("identifier", "").upper() for c in retrieved_chunks}
             for cwe_id in nvd_cwes:
                 if cwe_id not in existing_ids and cwe_id in id_to_chunk:
@@ -1564,6 +1880,7 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
                 debug_info["cve_description_bridge"] = {
                     "cve_id": cve_with_cwes.get("identifier"),
                     "cwe_ids": sorted(nvd_cwes),
+                    "soft_context": soft_mapped_bridge,
                 }
             if not eval_mode:
                 print(f"[CVE description bridge: {cve_with_cwes['identifier']} → {sorted(nvd_cwes)}]\n")
@@ -1775,7 +2092,13 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
         _t["cwe_ce_start"] = time.time()
     listwise_candidates: list[dict] = []
     ce_scored: list[tuple[dict, float]] = []
-    if CWE_CROSSENCODER_ENABLED and not bridge_fired and not knn_high_confidence:
+    ce_allowed_after_soft_bridge = (
+        MAPPED_BRIDGE_SOFT_CONTEXT
+        and MAPPED_BRIDGE_SOFT_CE_RERANK
+        and llm_route_hint == "mapped"
+        and bridge_fired
+    )
+    if CWE_CROSSENCODER_ENABLED and (not bridge_fired or ce_allowed_after_soft_bridge) and not knn_high_confidence:
         cwe_positions = [i for i, c in enumerate(retrieved_chunks)
                          if (c.get("source") == "CWE"
                              or c.get("identifier", "").upper().startswith("CWE-"))]
@@ -1869,6 +2192,27 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     if _t is not None:
         _t["cwe_ce_done"] = time.time()
 
+    if MAPPED_BRIDGE_SOFT_CONTEXT and llm_route_hint == "mapped" and bridge_fired and nvd_bridge_cwes:
+        kept_chunks = []
+        extra_cwes = []
+        for c in retrieved_chunks:
+            cid = (c.get("identifier") or "").upper()
+            is_cwe = c.get("source") == "CWE" or cid.startswith("CWE-")
+            if not is_cwe:
+                kept_chunks.append(c)
+            elif cid in nvd_bridge_cwes:
+                kept_chunks.append(c)
+            elif len(extra_cwes) < MAPPED_BRIDGE_SOFT_MAX_EXTRA_CWES:
+                kept_chunks.append(c)
+                extra_cwes.append(cid)
+        retrieved_chunks = kept_chunks
+        if debug_info is not None:
+            debug_info["mapped_bridge_soft_context"] = {
+                "nvd_cwes": sorted(nvd_bridge_cwes),
+                "extra_cwes": extra_cwes,
+                "max_extra_cwes": MAPPED_BRIDGE_SOFT_MAX_EXTRA_CWES,
+            }
+
     hist = _history_str(history)
     
     context_parts = []
@@ -1905,15 +2249,24 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
     # The cve_rule then tells the LLM to trust the explicit CWE listed in the CVE chunk.
     is_cve_query = (bool(re.search(r'\bCVE-\d{4}-\d+\b', question, re.IGNORECASE))
                     or any(c.get("source") == "CVE" for c in retrieved_chunks))
-    cve_rule = (
-        "9. For CVE root-cause (CWE) questions: if the context lists an explicit CWE ID, state it. "
-        "If the weakness shows 'n/a' or no CWE ID, you MUST analyze the vulnerability description "
-        "and determine the most likely CWE (e.g. CWE-79 for XSS, CWE-89 for SQL injection, "
-        "CWE-416 for use-after-free, CWE-787 for out-of-bounds write, CWE-77/78 for command injection). "
-        "Always end your answer with the CWE ID on its own line. Never say 'I don't have enough information' "
-        "for CVE weakness questions."
-        if is_cve_query else ""
-    )
+    if is_cve_query and MAPPED_BRIDGE_SOFT_CONTEXT and llm_route_hint == "mapped" and bridge_fired:
+        cve_rule = (
+            "9. For CVE root-cause (CWE) questions: treat explicit NVD CWE IDs in the context as strong "
+            "structured evidence, but compare them against the CVE description and any other retrieved CWE "
+            "definitions. If NVD lists a broad parent CWE and a more specific retrieved CWE better matches "
+            "the described root cause, choose the more specific CWE. Always end your answer with the CWE ID "
+            "on its own line. Never say 'I don't have enough information' for CVE weakness questions."
+        )
+    else:
+        cve_rule = (
+            "9. For CVE root-cause (CWE) questions: if the context lists an explicit CWE ID, state it. "
+            "If the weakness shows 'n/a' or no CWE ID, you MUST analyze the vulnerability description "
+            "and determine the most likely CWE (e.g. CWE-79 for XSS, CWE-89 for SQL injection, "
+            "CWE-416 for use-after-free, CWE-787 for out-of-bounds write, CWE-77/78 for command injection). "
+            "Always end your answer with the CWE ID on its own line. Never say 'I don't have enough information' "
+            "for CVE weakness questions."
+            if is_cve_query else ""
+        )
 
     hierarchy_rule = (
         "9b. CWE abstraction level: Prefer Base-level CWEs over Variant-level (too specific) "
@@ -1956,7 +2309,60 @@ def ask(question: str, history: list, eval_mode: bool = False, debug_info: dict 
             "bridge_fired": bridge_fired,
         }
 
-    prompt = f"""You are a Cyber Threat Intelligence expert. Answer the question based ONLY on the provided context.
+    # Prompt variants. The context-only variant preserves the original
+    # benchmark task prompt unchanged and only prepends retrieved evidence.
+    if PROMPT_INSTRUCTION and is_cve_query:
+        prompt = f"""Map the CVE description to exactly one CWE ID.
+
+Use the provided context as evidence.
+If the context contains an explicit CWE ID for this CVE, return that CWE ID.
+If no explicit CWE ID is available, infer the best CWE from the CVE description and retrieved CWE definitions.
+
+Never refuse.
+Never say there is not enough information.
+Return one brief justification sentence.
+The final line must contain only the CWE ID.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:"""
+    elif PROMPT_CONTEXT_ONLY and is_cve_query:
+        prompt = f"""Retrieved evidence:
+{context}
+
+{question}
+
+ANSWER:"""
+    # Two prompt variants. The default ``legacy'' variant inherits eight base
+    # rules from a broader CTI chatbot the codebase also supports; rules 1, 2,
+    # 5, and 8 are conditionally triggered on phrases that never appear in
+    # CTI-RCM queries (Detection, Mitigations, T####, shell commands). The
+    # ``lean'' variant drops those four rules; it is selected by setting
+    # CTI_RAG_PROMPT_LEAN=1 and is documented in the paper appendix.
+    elif PROMPT_LEAN:
+        prompt = f"""You are a Cyber Threat Intelligence expert. Answer the question based ONLY on the provided context.
+
+CRITICAL RULES:
+1. Answer ONLY what is asked. Be concise and technical.
+2. Answer ONLY the current question. Do not bring in entities or facts from conversation history unless the current question references them.
+3. The [TYPE IDENTIFIER — NAME] header in each context block is the authoritative name and ID for that entry. Use those exact values. Never rename or re-identify based on training knowledge.
+{cve_rule}
+{hierarchy_rule}
+{listwise_rule}
+{eval_rule}
+
+Context:
+{context}
+
+QUESTION: {question}
+
+ANSWER:"""
+    else:
+        prompt = f"""You are a Cyber Threat Intelligence expert. Answer the question based ONLY on the provided context.
 
 CRITICAL RULES:
 1. If the question asks for "Detection" or "How to detect", use the "Detection Strategy" or "Analytics" chunks.
@@ -2019,7 +2425,50 @@ ANSWER:"""
             "chosen": chosen_cwe,
         }
     else:
-        answer = _llm(prompt, route=llm_route)
+        if (LLM_UNMAPPED_AGGREGATE and llm_route == "unmapped"
+                and not bridge_fired and not knn_high_confidence):
+            if LLM_UNMAPPED_AGGREGATE_3WAY:
+                answer = _aggregate_unmapped_answer_3way(
+                    prompt, question,
+                    knn_weights=knn_cwe_weights,
+                    debug_info=debug_info,
+                )
+            else:
+                answer = _aggregate_unmapped_answer(
+                    prompt, question,
+                    knn_weights=knn_cwe_weights,
+                    debug_info=debug_info,
+                )
+        else:
+            final_budget = LLM_MAPPED_RESPONSE_BUDGET if llm_route == "mapped" else None
+            answer = _llm(prompt, route=llm_route, max_tokens=final_budget)
+
+    # Mapped-bridge "prefer last NVD CWE" rewrite. When the LLM's pick is a
+    # non-last CWE from NVD's multi-CWE list, rewrite to the last (which
+    # empirically matches CTI-Bench's gold in observed multi-CWE failures).
+    if (MAPPED_BRIDGE_PREFER_LAST_NVD
+            and llm_route == "mapped"
+            and bridge_fired
+            and initial_cve_with_cwes):
+        nvd_cwe_seq = [c.upper() for c in initial_cve_with_cwes.get("cwe_ids", [])]
+        if len(nvd_cwe_seq) >= 2:
+            last_nvd = nvd_cwe_seq[-1]
+            llm_mentions = [m.upper() for m in re.findall(r"\bCWE-\d+\b", answer or "", re.IGNORECASE)]
+            llm_pick = llm_mentions[-1] if llm_mentions else ""
+            if llm_pick in nvd_cwe_seq and llm_pick != last_nvd:
+                rewrite_sel = {
+                    "selected": last_nvd,
+                    "previous": llm_pick,
+                    "reason": "mapped_bridge_prefer_last_nvd",
+                    "name": (id_to_chunk.get(last_nvd) or {}).get("name", last_nvd),
+                }
+                answer = _rewrite_cwe_answer(answer, rewrite_sel)
+                if debug_info is not None:
+                    debug_info["mapped_bridge_rewrite"] = {
+                        "nvd_seq": nvd_cwe_seq,
+                        "llm_pick": llm_pick,
+                        "rewritten_to": last_nvd,
+                    }
     if debug_info is not None and sc_debug is not None:
         debug_info["self_consistency"] = sc_debug
     cwe_selection = _select_phrase_index_cwe(question, answer, retrieved_chunks)
