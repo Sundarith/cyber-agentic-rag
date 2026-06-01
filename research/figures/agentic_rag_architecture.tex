@@ -2,169 +2,152 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{xcolor}
-\usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,decorations.pathreplacing,backgrounds}
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
 
-\definecolor{agentblue}{HTML}{1D4ED8}
-\definecolor{toolteal}{HTML}{0F766E}
-\definecolor{retrievalgreen}{HTML}{15803D}
-\definecolor{graphorange}{HTML}{C2410C}
-\definecolor{verifyviolet}{HTML}{7C3AED}
-\definecolor{evalred}{HTML}{B91C1C}
-\definecolor{slate}{HTML}{475569}
-\definecolor{softblue}{HTML}{EFF6FF}
-\definecolor{softteal}{HTML}{ECFDF5}
-\definecolor{softgreen}{HTML}{F0FDF4}
-\definecolor{softviolet}{HTML}{F5F3FF}
-\definecolor{softred}{HTML}{FEF2F2}
-\definecolor{softgray}{HTML}{F8FAFC}
-\definecolor{linegray}{HTML}{64748B}
-
-\newcommand{\subtext}[1]{{\sffamily\scriptsize\color{slate}#1}}
+\definecolor{ink}{HTML}{334155}
+\definecolor{line}{HTML}{64748B}
+\definecolor{stagefill}{HTML}{F8FAFC}
+\definecolor{datablue}{HTML}{DCEAF8}
+\definecolor{agentorange}{HTML}{F6B44B}
+\definecolor{knowledgegreen}{HTML}{DFF3E8}
+\definecolor{verifyviolet}{HTML}{EDE9FE}
+\definecolor{evalred}{HTML}{FDECEC}
+\definecolor{sourcecream}{HTML}{FFF4CC}
 
 \tikzset{
   font=\sffamily,
-  nodebox/.style={
-    draw=linegray,
-    rounded corners=2pt,
-    fill=white,
-    align=center,
-    minimum height=10mm,
-    text width=32mm,
-    inner sep=4pt
+  stage/.style={
+    draw=line,
+    line width=0.65pt,
+    fill=stagefill,
+    inner sep=5mm
   },
-  smallbox/.style={
-    nodebox,
-    minimum height=8mm,
-    text width=28mm,
-    font=\sffamily\footnotesize
+  stage title/.style={
+    font=\sffamily\bfseries\large,
+    text=black
+  },
+  box/.style={
+    draw=line,
+    line width=0.65pt,
+    fill=datablue,
+    align=center,
+    minimum height=13mm,
+    text width=33mm,
+    inner sep=3pt
   },
   widebox/.style={
-    nodebox,
-    text width=42mm
+    box,
+    text width=43mm
   },
-  band/.style={
-    draw=linegray,
-    rounded corners=4pt,
-    fill=softgray,
-    inner sep=7pt
+  small/.style={
+    font=\sffamily\footnotesize,
+    text=ink
   },
-  flow/.style={
-    -{Latex[length=2.2mm]},
-    draw=linegray,
-    line width=0.5pt
-  },
-  mainflow/.style={
-    -{Latex[length=2.6mm]},
-    draw=agentblue,
-    line width=0.8pt
+  orange/.style={box, fill=agentorange},
+  cream/.style={box, fill=sourcecream},
+  green/.style={box, fill=knowledgegreen},
+  violet/.style={box, fill=verifyviolet},
+  redbox/.style={box, fill=evalred},
+  arrow/.style={
+    -{Latex[length=2.4mm]},
+    draw=ink,
+    line width=0.75pt
   },
   feedback/.style={
-    -{Latex[length=2.2mm]},
-    draw=verifyviolet,
+    -{Latex[length=2.4mm]},
+    draw=ink,
     dashed,
-    line width=0.65pt
+    line width=0.75pt
   },
-  observe/.style={
-    -{Latex[length=2.0mm]},
-    draw=evalred,
-    dotted,
-    line width=0.7pt
-  },
-  bandlabel/.style={
-    font=\sffamily\footnotesize\bfseries,
-    text=slate,
-    anchor=west
-  },
-  subtitle/.style={font=\sffamily\scriptsize, text=slate}
+  side label/.style={
+    rotate=90,
+    font=\sffamily\Large,
+    text=ink,
+    align=center
+  }
 }
 
 \begin{document}
-\begin{tikzpicture}[node distance=8mm and 8mm]
+\begin{tikzpicture}[node distance=6mm and 6mm]
 
-% Main reasoning path.
-\node[nodebox, fill=softblue, draw=agentblue] (query)
-  {Query\\\subtext{CVE / CWE / CAPEC / ATT\&CK}};
-\node[widebox, fill=softblue, draw=agentblue, right=of query] (planner)
-  {Query Planner\\\subtext{route, decompose, choose tools}};
-\node[widebox, fill=softblue, draw=agentblue, right=of planner] (controller)
-  {Agent Controller\\\subtext{budgeted evidence loop}};
-\node[widebox, fill=softviolet, draw=verifyviolet, right=of controller] (verifier)
-  {Evidence Verifier\\\subtext{support, sufficiency, citations}};
-\node[widebox, fill=softviolet, draw=verifyviolet, right=of verifier] (synth)
-  {Grounded Synthesizer\\\subtext{cited final response}};
-\node[nodebox, fill=softred, draw=evalred, right=of synth] (answer)
-  {Final Answer\\\subtext{auditable citations}};
-
-\draw[mainflow] (query) -- (planner);
-\draw[mainflow] (planner) -- (controller);
-\draw[mainflow] (controller) -- (verifier);
-\draw[mainflow] (verifier) -- (synth);
-\draw[mainflow] (synth) -- (answer);
-
-% Tool layer.
-\node[smallbox, fill=softteal, draw=toolteal, below=13mm of controller, xshift=-48mm] (search)
-  {search\\hybrid};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of search] (open)
-  {open\\exact ID};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of open] (quote)
-  {find / quote\\section};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of quote] (summarize)
-  {summarize\\evidence};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of summarize] (compare)
-  {compare\\candidates};
+% ---------------------------------------------------------------------------
+% 1. Query planning and tool policy
+% ---------------------------------------------------------------------------
+\node[cream] (q) at (0,0) {User / Benchmark\\Query\\{\small CVE, CWE, CAPEC, ATT\&CK}};
+\node[box, right=of q] (decompose) {Decompose into\\Subquestions};
+\node[orange, right=of decompose] (planner) {Query Planner\\and Tool Policy};
+\node[box, right=of planner] (budget) {Tool Budget\\Stopping Criteria};
 
 \begin{pgfonlayer}{background}
-\node[band, fit=(search)(open)(quote)(summarize)(compare)] (toolband) {};
+\node[stage, fit=(q)(decompose)(planner)(budget), label={[stage title]above:{1. Query Planning and Agent Control}}] (stage1) {};
 \end{pgfonlayer}
-\node[bandlabel] at ($(toolband.north west)+(2mm,-2mm)$) {Tool-Using Retrieval Agent};
 
-\draw[mainflow] (controller.south) -- (controller.south |- toolband.north);
+\draw[arrow] (q) -- (decompose);
+\draw[arrow] (decompose) -- (planner);
+\draw[arrow] (planner) -- (budget);
 
-% Retrieval and knowledge substrate.
-\node[widebox, fill=softgreen, draw=retrievalgreen, below=16mm of search, xshift=9mm] (hybrid)
-  {Hybrid Retrieval\\\subtext{BM25 + dense vectors + reranking}};
-\node[widebox, fill=softgreen, draw=retrievalgreen, right=7mm of hybrid] (hierarchy)
-  {Hierarchical Index\\\subtext{corpus to document to section to passage}};
-\node[widebox, fill=softgreen, draw=graphorange, right=7mm of hierarchy] (graph)
-  {Graph Layer\\\subtext{entities, relations, claims, contradictions}};
-\node[widebox, fill=softgray, draw=slate, right=7mm of graph] (memory)
-  {Memory Layer\\\subtext{prior searches, summaries, failed paths}};
+% ---------------------------------------------------------------------------
+% 2. Agentic evidence retrieval
+% ---------------------------------------------------------------------------
+\node[box, below=16mm of q] (search) {Hybrid Search\\{\small BM25 + dense vectors}};
+\node[box, right=of search] (open) {Open / Find / Quote\\{\small exact IDs and sections}};
+\node[green, right=of open] (substrate) {Knowledge Substrate\\{\small hierarchy + CTI graph}};
+\node[box, right=of substrate] (rerank) {Rerank and Compare\\Candidate Evidence};
 
 \begin{pgfonlayer}{background}
-\node[band, fit=(hybrid)(hierarchy)(graph)(memory)] (knowledgeband) {};
+\node[stage, fit=(search)(open)(substrate)(rerank), label={[stage title]above:{2. Agentic Evidence Retrieval}}] (stage2) {};
 \end{pgfonlayer}
-\node[bandlabel] at ($(knowledgeband.north west)+(2mm,-2mm)$) {Retrieval, Knowledge, and Memory Substrate};
 
-\draw[flow] (search.south) -- (search.south |- hybrid.north);
-\draw[flow] (open.south) -- ++(0,-6mm) -| (hierarchy.north);
-\draw[flow] (quote.south) -- ++(0,-6mm) -| (hierarchy.north);
-\draw[flow] (summarize.south) -- ++(0,-6mm) -| (graph.north);
-\draw[flow] (compare.south) -- ++(0,-6mm) -| (memory.north);
-\draw[flow] (hybrid) -- (hierarchy);
-\draw[flow] (hierarchy) -- (graph);
-\draw[flow] (graph) -- (memory);
-\draw[flow] (graph.north) -- ++(0,7mm) -| (verifier.south);
+\draw[arrow] (budget.south) |- (search.north);
+\draw[arrow] (search) -- (open);
+\draw[arrow] (open) -- (substrate);
+\draw[arrow] (substrate) -- (rerank);
 
-% Feedback loops kept outside the main flow.
-\draw[feedback] (verifier.north) -- ++(0,7mm) -|
-  node[pos=0.28, above, font=\sffamily\scriptsize, text=verifyviolet]
-  {missing or weak evidence}
-  (controller.north);
-
-% Observability and evaluation sidecar.
-\node[widebox, fill=softred, draw=evalred, below=15mm of graph, xshift=-18mm] (trace)
-  {Observability Traces\\\subtext{tools, scores, evidence, decisions}};
-\node[widebox, fill=softred, draw=evalred, right=9mm of trace] (eval)
-  {Evaluation Harness\\\subtext{golden, synthetic, adversarial, human review}};
+% ---------------------------------------------------------------------------
+% 3. Verification and grounded synthesis
+% ---------------------------------------------------------------------------
+\node[violet, below=16mm of search] (verify) {Evidence Verifier\\{\small support and sufficiency checks}};
+\node[box, right=of verify] (repair) {Missing Evidence?\\{\small revise search plan}};
+\node[orange, right=of repair] (synth) {Grounded Synthesizer\\{\small answer with citations}};
+\node[redbox, right=of synth] (answer) {Final Answer\\{\small auditable citations}};
 
 \begin{pgfonlayer}{background}
-\node[band, fit=(trace)(eval)] (evalband) {};
+\node[stage, fit=(verify)(repair)(synth)(answer), label={[stage title]above:{3. Verification and Grounded Answer Generation}}] (stage3) {};
 \end{pgfonlayer}
-\node[bandlabel] at ($(evalband.north west)+(2mm,-2mm)$) {Measurement Layer};
 
-\draw[flow] (trace) -- (eval);
+\draw[arrow] (rerank.south) |- (verify.north);
+\draw[arrow] (verify) -- (repair);
+\draw[arrow] (repair) -- (synth);
+\draw[arrow] (synth) -- (answer);
+\draw[feedback] (repair.north) -- ++(0,7mm) -| node[pos=0.24, above, font=\sffamily\footnotesize] {if evidence is weak} (search.north);
+
+% ---------------------------------------------------------------------------
+% 4. Observability and evaluation
+% ---------------------------------------------------------------------------
+\node[box, below=16mm of verify] (trace) {Observability Traces\\{\small tools, scores, decisions}};
+\node[box, right=of trace] (citations) {Citation Audit\\{\small quote-to-claim links}};
+\node[orange, right=of citations] (ablation) {Ablation Studies\\{\small tool and graph budgets}};
+\node[redbox, right=of ablation] (eval) {Evaluation Harness\\{\small golden, adversarial, human review}};
+
+\begin{pgfonlayer}{background}
+\node[stage, fit=(trace)(citations)(ablation)(eval), label={[stage title]above:{4. Measurement and Paper Evaluation}}] (stage4) {};
+\end{pgfonlayer}
+
+\draw[arrow] (answer.south) |- (trace.north);
+\draw[arrow] (trace) -- (citations);
+\draw[arrow] (citations) -- (ablation);
+\draw[arrow] (ablation) -- (eval);
+
+% Side grouping labels, matching the staged style of the reference figure.
+\draw[decorate, decoration={brace, amplitude=7pt}, line width=0.7pt, draw=ink]
+  ($(stage1.north west)+(-8mm,0)$) -- ($(stage3.south west)+(-8mm,0)$)
+  node[midway, left=10mm, side label] {Agentic RAG\\Operation};
+
+\draw[decorate, decoration={brace, amplitude=7pt}, line width=0.7pt, draw=ink]
+  ($(stage4.north west)+(-8mm,0)$) -- ($(stage4.south west)+(-8mm,0)$)
+  node[midway, left=10mm, side label] {Evaluation\\and Analysis};
 
 \end{tikzpicture}
 \end{document}
