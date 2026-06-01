@@ -2,142 +2,169 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{xcolor}
-\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds}
+\pgfdeclarelayer{background}
+\pgfsetlayers{background,main}
 
-\definecolor{agentblue}{HTML}{2563EB}
+\definecolor{agentblue}{HTML}{1D4ED8}
+\definecolor{toolteal}{HTML}{0F766E}
 \definecolor{retrievalgreen}{HTML}{15803D}
 \definecolor{graphorange}{HTML}{C2410C}
 \definecolor{verifyviolet}{HTML}{7C3AED}
-\definecolor{memoryslate}{HTML}{475569}
 \definecolor{evalred}{HTML}{B91C1C}
+\definecolor{slate}{HTML}{475569}
+\definecolor{softblue}{HTML}{EFF6FF}
+\definecolor{softteal}{HTML}{ECFDF5}
+\definecolor{softgreen}{HTML}{F0FDF4}
+\definecolor{softviolet}{HTML}{F5F3FF}
+\definecolor{softred}{HTML}{FEF2F2}
 \definecolor{softgray}{HTML}{F8FAFC}
 \definecolor{linegray}{HTML}{64748B}
 
+\newcommand{\subtext}[1]{{\sffamily\scriptsize\color{slate}#1}}
+
 \tikzset{
   font=\sffamily,
-  box/.style={
+  nodebox/.style={
     draw=linegray,
     rounded corners=2pt,
     fill=white,
     align=center,
-    minimum height=9mm,
-    text width=34mm,
-    inner sep=5pt
+    minimum height=10mm,
+    text width=32mm,
+    inner sep=4pt
+  },
+  smallbox/.style={
+    nodebox,
+    minimum height=8mm,
+    text width=28mm,
+    font=\sffamily\footnotesize
   },
   widebox/.style={
-    box,
-    text width=46mm
+    nodebox,
+    text width=42mm
   },
-  store/.style={
-    box,
-    fill=softgray,
-    text width=38mm
-  },
-  group/.style={
+  band/.style={
     draw=linegray,
-    rounded corners=3pt,
+    rounded corners=4pt,
     fill=softgray,
-    inner sep=8pt
+    inner sep=7pt
   },
   flow/.style={
     -{Latex[length=2.2mm]},
     draw=linegray,
-    line width=0.45pt
+    line width=0.5pt
   },
-  strongflow/.style={
-    -{Latex[length=2.4mm]},
+  mainflow/.style={
+    -{Latex[length=2.6mm]},
     draw=agentblue,
-    line width=0.75pt
+    line width=0.8pt
   },
   feedback/.style={
     -{Latex[length=2.2mm]},
     draw=verifyviolet,
     dashed,
-    line width=0.55pt
+    line width=0.65pt
   },
-  label/.style={
-    align=center,
-    font=\sffamily\footnotesize\bfseries
-  }
+  observe/.style={
+    -{Latex[length=2.0mm]},
+    draw=evalred,
+    dotted,
+    line width=0.7pt
+  },
+  bandlabel/.style={
+    font=\sffamily\footnotesize\bfseries,
+    text=slate,
+    anchor=west
+  },
+  subtitle/.style={font=\sffamily\scriptsize, text=slate}
 }
 
 \begin{document}
-\begin{tikzpicture}[node distance=8mm and 10mm]
+\begin{tikzpicture}[node distance=8mm and 8mm]
 
-% User and agent control loop
-\node[box, fill=agentblue!8, draw=agentblue] (query) {User / Benchmark Query\\{\footnotesize CVE, CWE, CAPEC, ATT\&CK}};
-\node[widebox, fill=agentblue!8, draw=agentblue, right=of query] (planner) {Query Planner\\{\footnotesize route, decompose, choose tools}};
-\node[widebox, fill=agentblue!8, draw=agentblue, right=of planner] (controller) {Agent Controller\\{\footnotesize bounded loop, budget, stopping rule}};
+% Main reasoning path.
+\node[nodebox, fill=softblue, draw=agentblue] (query)
+  {Query\\\subtext{CVE / CWE / CAPEC / ATT\&CK}};
+\node[widebox, fill=softblue, draw=agentblue, right=of query] (planner)
+  {Query Planner\\\subtext{route, decompose, choose tools}};
+\node[widebox, fill=softblue, draw=agentblue, right=of planner] (controller)
+  {Agent Controller\\\subtext{budgeted evidence loop}};
+\node[widebox, fill=softviolet, draw=verifyviolet, right=of controller] (verifier)
+  {Evidence Verifier\\\subtext{support, sufficiency, citations}};
+\node[widebox, fill=softviolet, draw=verifyviolet, right=of verifier] (synth)
+  {Grounded Synthesizer\\\subtext{cited final response}};
+\node[nodebox, fill=softred, draw=evalred, right=of synth] (answer)
+  {Final Answer\\\subtext{auditable citations}};
 
-% Tool layer
-\node[box, below=12mm of planner, xshift=-26mm] (search) {search\\{\footnotesize hybrid retrieval}};
-\node[box, right=6mm of search] (open) {open\\{\footnotesize exact ID / document}};
-\node[box, right=6mm of open] (find) {find / quote\\{\footnotesize section evidence}};
-\node[box, right=6mm of find] (compare) {summarize / compare\\{\footnotesize candidate synthesis}};
-\node[group, fit=(search)(open)(find)(compare), label={[label, yshift=-1mm]above:Tool-Using Retrieval Agent}] (tools) {};
+\draw[mainflow] (query) -- (planner);
+\draw[mainflow] (planner) -- (controller);
+\draw[mainflow] (controller) -- (verifier);
+\draw[mainflow] (verifier) -- (synth);
+\draw[mainflow] (synth) -- (answer);
 
-% Retrieval stack
-\node[store, below=15mm of search, xshift=-18mm, draw=retrievalgreen] (bm25) {Sparse Retrieval\\{\footnotesize BM25 / lexical / IDs}};
-\node[store, right=7mm of bm25, draw=retrievalgreen] (dense) {Dense Retrieval\\{\footnotesize BGE embeddings}};
-\node[store, right=7mm of dense, draw=retrievalgreen] (rerank) {Reranker\\{\footnotesize cross-encoder / listwise}};
-\node[group, fit=(bm25)(dense)(rerank), draw=retrievalgreen, label={[label, text=retrievalgreen, yshift=-1mm]above:Hybrid Retrieval}] (retrieval) {};
+% Tool layer.
+\node[smallbox, fill=softteal, draw=toolteal, below=13mm of controller, xshift=-48mm] (search)
+  {search\\hybrid};
+\node[smallbox, fill=softteal, draw=toolteal, right=5mm of search] (open)
+  {open\\exact ID};
+\node[smallbox, fill=softteal, draw=toolteal, right=5mm of open] (quote)
+  {find / quote\\section};
+\node[smallbox, fill=softteal, draw=toolteal, right=5mm of quote] (summarize)
+  {summarize\\evidence};
+\node[smallbox, fill=softteal, draw=toolteal, right=5mm of summarize] (compare)
+  {compare\\candidates};
 
-% Hierarchical corpus
-\node[store, below=14mm of dense, text width=58mm] (hierarchy) {Hierarchical Corpus Index\\{\footnotesize corpus $\rightarrow$ document $\rightarrow$ section $\rightarrow$ passage $\rightarrow$ sentence/table}};
+\begin{pgfonlayer}{background}
+\node[band, fit=(search)(open)(quote)(summarize)(compare)] (toolband) {};
+\end{pgfonlayer}
+\node[bandlabel] at ($(toolband.north west)+(2mm,-2mm)$) {Tool-Using Retrieval Agent};
 
-% Graph and memory
-\node[store, below=14mm of bm25, draw=graphorange] (graph) {Graph Layer\\{\footnotesize entities, relations, citations, claims, contradictions}};
-\node[store, below=14mm of rerank, draw=memoryslate] (memory) {Memory Layer\\{\footnotesize prior searches, useful summaries, failed paths, user preferences}};
+\draw[mainflow] (controller.south) -- ++(0,-4mm) -| (open.north);
+\draw[flow] (quote.north) -- ++(0,6mm) -| (verifier.south);
 
-% Verification and synthesis
-\node[widebox, right=16mm of controller, fill=verifyviolet!8, draw=verifyviolet] (verifier) {Evidence Verifier\\{\footnotesize support, sufficiency, citation checks}};
-\node[widebox, below=12mm of verifier, fill=verifyviolet!8, draw=verifyviolet] (synth) {Grounded Synthesizer\\{\footnotesize answer with citations}};
-\node[box, above=12mm of verifier, fill=white, draw=evalred] (answer) {Final Answer\\{\footnotesize cited, auditable}};
+% Retrieval and knowledge substrate.
+\node[widebox, fill=softgreen, draw=retrievalgreen, below=16mm of search, xshift=9mm] (hybrid)
+  {Hybrid Retrieval\\\subtext{BM25 + dense vectors + reranking}};
+\node[widebox, fill=softgreen, draw=retrievalgreen, right=7mm of hybrid] (hierarchy)
+  {Hierarchical Index\\\subtext{corpus to document to section to passage}};
+\node[widebox, fill=softgreen, draw=graphorange, right=7mm of hierarchy] (graph)
+  {Graph Layer\\\subtext{entities, relations, claims, contradictions}};
+\node[widebox, fill=softgray, draw=slate, right=7mm of graph] (memory)
+  {Memory Layer\\\subtext{prior searches, summaries, failed paths}};
 
-% Observability / evaluation
-\node[store, below=18mm of controller, xshift=35mm, draw=evalred, text width=48mm] (trace) {Observability Traces\\{\footnotesize tool calls, retrieved chunks, scores, decisions, citations}};
-\node[store, below=12mm of trace, draw=evalred, text width=48mm] (eval) {Evaluation Harness\\{\footnotesize golden data, synthetic questions, adversarial tests, human review}};
+\begin{pgfonlayer}{background}
+\node[band, fit=(hybrid)(hierarchy)(graph)(memory)] (knowledgeband) {};
+\end{pgfonlayer}
+\node[bandlabel] at ($(knowledgeband.north west)+(2mm,-2mm)$) {Retrieval, Knowledge, and Memory Substrate};
 
-% Flows
-\draw[strongflow] (query) -- (planner);
-\draw[strongflow] (planner) -- (controller);
-\draw[strongflow] (controller) -- (tools.north);
-
-\draw[flow] (search) -- (bm25);
-\draw[flow] (search) -- (dense);
-\draw[flow] (bm25) -- (rerank);
-\draw[flow] (dense) -- (rerank);
-\draw[flow] (open) |- (hierarchy);
-\draw[flow] (find) |- (hierarchy);
-\draw[flow] (compare) |- (memory);
-\draw[flow] (rerank) -- (hierarchy);
+\draw[flow] (search.south) -- (hybrid.north);
+\draw[flow] (open.south) -- (hierarchy.north);
+\draw[flow] (quote.south) -- (hierarchy.north);
+\draw[flow] (summarize.south) -- (memory.north);
+\draw[flow] (compare.south) -- (graph.north);
+\draw[flow] (hybrid) -- (hierarchy);
 \draw[flow] (hierarchy) -- (graph);
-\draw[flow] (hierarchy) -- (memory);
-\draw[flow] (graph) -| (open);
-\draw[flow] (memory) -| (planner);
+\draw[flow] (graph) -- (memory);
 
-\draw[strongflow] (tools.east) -- ++(6mm,0) |- (verifier.west);
-\draw[strongflow] (verifier) -- (synth);
-\draw[strongflow] (synth) -- (answer);
+% Feedback loops kept outside the main flow.
+\draw[feedback] (verifier.north) -- ++(0,7mm) -|
+  node[pos=0.28, above, font=\sffamily\scriptsize, text=verifyviolet]
+  {missing or weak evidence}
+  (controller.north);
 
-\draw[feedback] (verifier.west) -- ++(-7mm,0) |- node[pos=0.25, left, font=\footnotesize, text=verifyviolet] {missing / weak evidence} (controller.south);
-\draw[feedback] (synth.west) -- ++(-8mm,0) |- node[pos=0.25, left, font=\footnotesize, text=verifyviolet] {claim needs support} (find.east);
+% Observability and evaluation sidecar.
+\node[widebox, fill=softred, draw=evalred, below=15mm of graph, xshift=-18mm] (trace)
+  {Observability Traces\\\subtext{tools, scores, evidence, decisions}};
+\node[widebox, fill=softred, draw=evalred, right=9mm of trace] (eval)
+  {Evaluation Harness\\\subtext{golden, synthetic, adversarial, human review}};
 
-\draw[flow] (controller) -- (trace);
-\draw[flow] (tools) -- (trace);
-\draw[flow] (verifier) -- (trace);
-\draw[flow] (synth) -- (trace);
+\begin{pgfonlayer}{background}
+\node[band, fit=(trace)(eval)] (evalband) {};
+\end{pgfonlayer}
+\node[bandlabel] at ($(evalband.north west)+(2mm,-2mm)$) {Measurement Layer};
+
 \draw[flow] (trace) -- (eval);
-\draw[flow] (eval.west) -- ++(-10mm,0) |- node[pos=0.25, left, font=\footnotesize, text=evalred] {ablation results} (planner.south);
-
-% Current implementation marker
-\node[draw=linegray, rounded corners=2pt, fill=white, align=left, font=\footnotesize, text width=64mm,
-      below=8mm of eval] (legend) {
-  \textbf{Prototype status.}
-  Implemented now: tool loop, exact open, lexical search, graph expansion,
-  facet verifier, traces, CTI-RCM evaluation harness.
-  Next: dense retrieval, reranking, LLM synthesis, memory, and claim graph.
-};
 
 \end{tikzpicture}
 \end{document}
