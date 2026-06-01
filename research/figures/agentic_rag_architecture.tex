@@ -22,7 +22,8 @@
     draw=line,
     line width=0.65pt,
     fill=stagefill,
-    inner sep=5mm
+    inner xsep=5mm,
+    inner ysep=7mm
   },
   stage title/.style={
     font=\sffamily\bfseries\large,
@@ -61,6 +62,9 @@
     dashed,
     line width=0.75pt
   },
+  route/.style={
+    rounded corners=2pt
+  },
   side label/.style={
     rotate=90,
     font=\sffamily\Large,
@@ -81,8 +85,9 @@
 \node[box, right=of planner] (budget) {Tool Budget\\Stopping Criteria};
 
 \begin{pgfonlayer}{background}
-\node[stage, fit=(q)(decompose)(planner)(budget), label={[stage title]above:{1. Query Planning and Agent Control}}] (stage1) {};
+\node[stage, fit=(q)(decompose)(planner)(budget)] (stage1) {};
 \end{pgfonlayer}
+\node[stage title, anchor=north] at ($(stage1.north)+(0,-1.8mm)$) {1. Query Planning and Agent Control};
 
 \draw[arrow] (q) -- (decompose);
 \draw[arrow] (decompose) -- (planner);
@@ -97,10 +102,11 @@
 \node[box, right=of substrate] (rerank) {Rerank and Compare\\Candidate Evidence};
 
 \begin{pgfonlayer}{background}
-\node[stage, fit=(search)(open)(substrate)(rerank), label={[stage title]above:{2. Agentic Evidence Retrieval}}] (stage2) {};
+\node[stage, fit=(search)(open)(substrate)(rerank)] (stage2) {};
 \end{pgfonlayer}
+\node[stage title, anchor=north] at ($(stage2.north)+(0,-1.8mm)$) {2. Agentic Evidence Retrieval};
 
-\draw[arrow] (budget.south) |- (search.north);
+\draw[arrow, route] (budget.south) -- ++(0,-4mm) -| (search.north);
 \draw[arrow] (search) -- (open);
 \draw[arrow] (open) -- (substrate);
 \draw[arrow] (substrate) -- (rerank);
@@ -114,14 +120,16 @@
 \node[redbox, right=of synth] (answer) {Final Answer\\{\small auditable citations}};
 
 \begin{pgfonlayer}{background}
-\node[stage, fit=(verify)(repair)(synth)(answer), label={[stage title]above:{3. Verification and Grounded Answer Generation}}] (stage3) {};
+\node[stage, fit=(verify)(repair)(synth)(answer)] (stage3) {};
 \end{pgfonlayer}
+\node[stage title, anchor=north] at ($(stage3.north)+(0,-1.8mm)$) {3. Verification and Grounded Answer Generation};
 
-\draw[arrow] (rerank.south) |- (verify.north);
+\draw[arrow, route] (rerank.south) -- ++(0,-4mm) -| (verify.north);
 \draw[arrow] (verify) -- (repair);
 \draw[arrow] (repair) -- (synth);
 \draw[arrow] (synth) -- (answer);
-\draw[feedback] (repair.north) -- ++(0,7mm) -| node[pos=0.24, above, font=\sffamily\footnotesize] {if evidence is weak} (search.north);
+\coordinate (feedbackwest) at ($(stage2.west)+(-7mm,0)$);
+\draw[feedback, route] (repair.south) -- ++(0,-5mm) -| (feedbackwest |- repair.south) |- (search.west);
 
 % ---------------------------------------------------------------------------
 % 4. Observability and evaluation
@@ -132,10 +140,11 @@
 \node[redbox, right=of ablation] (eval) {Evaluation Harness\\{\small golden, adversarial, human review}};
 
 \begin{pgfonlayer}{background}
-\node[stage, fit=(trace)(citations)(ablation)(eval), label={[stage title]above:{4. Measurement and Paper Evaluation}}] (stage4) {};
+\node[stage, fit=(trace)(citations)(ablation)(eval)] (stage4) {};
 \end{pgfonlayer}
+\node[stage title, anchor=north] at ($(stage4.north)+(0,-1.8mm)$) {4. Measurement and Paper Evaluation};
 
-\draw[arrow] (answer.south) |- (trace.north);
+\draw[arrow, route] (answer.south) -- ++(0,-4mm) -| (trace.north);
 \draw[arrow] (trace) -- (citations);
 \draw[arrow] (citations) -- (ablation);
 \draw[arrow] (ablation) -- (eval);
