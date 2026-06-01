@@ -152,11 +152,11 @@
 \draw[arrow] (ablation) -- (eval);
 
 % Side grouping labels, matching the staged style of the reference figure.
-\draw[decorate, decoration={brace, amplitude=7pt}, line width=0.7pt, draw=ink]
+\draw[decorate, decoration={brace, mirror, amplitude=7pt}, line width=0.7pt, draw=ink]
   ($(stage1.north west)+(-16mm,0)$) -- ($(stage3.south west)+(-16mm,0)$)
   node[midway, left=10mm, side label] {Agentic RAG\\Operation};
 
-\draw[decorate, decoration={brace, amplitude=7pt}, line width=0.7pt, draw=ink]
+\draw[decorate, decoration={brace, mirror, amplitude=7pt}, line width=0.7pt, draw=ink]
   ($(stage4.north west)+(-16mm,0)$) -- ($(stage4.south west)+(-16mm,0)$)
   node[midway, left=10mm, side label] {Evaluation\\and Analysis};
 
