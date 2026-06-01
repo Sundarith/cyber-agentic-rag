@@ -16,6 +16,12 @@ python3 -m agentic_rag "What CWE underlies CAPEC-98?"
 python3 -m unittest tests/test_agentic_rag.py
 ```
 
+Run the prototype CTI-RCM evaluation harness after adding the local CTI-Bench checkout:
+
+```bash
+python3 eval_agentic_rcm.py 100 --trace-log logs/agentic_rcm_sample.jsonl
+```
+
 Design notes live in `research/agentic_rag_architecture.md`.
 
 CTI-RAG maps a CVE description to its root-cause CWE identifier by retrieving public

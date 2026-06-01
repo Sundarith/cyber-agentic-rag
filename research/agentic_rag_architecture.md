@@ -12,6 +12,8 @@ The initial implementation is intentionally dependency-light:
 - `AgenticRAG`: executes search/open/expand/find actions, tracks evidence, and stops when verification passes.
 - `EvidenceVerifier`: checks whether the evidence covers requested facets such as CWE root cause, CAPEC attack pattern, or detection.
 - `ExtractiveSynthesizer`: emits a cited grounded draft before a generative LLM backend is introduced.
+- `eval_agentic_rcm.py`: CTI-RCM harness with strict CWE-ID scoring, per-query traces,
+  timing, evidence summaries, and NVD-mapped/unmapped filtering.
 
 This is not intended to beat the submitted one-call CTI-RCM result yet. It creates a clean
 research harness for studying when multi-step retrieval helps, when it hurts, and how much
