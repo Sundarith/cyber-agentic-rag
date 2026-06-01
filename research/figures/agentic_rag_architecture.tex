@@ -2,7 +2,7 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{xcolor}
-\usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds}
+\usetikzlibrary{arrows.meta,fit,calc,backgrounds}
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
 
@@ -31,18 +31,26 @@
     fill=white,
     align=center,
     minimum height=10mm,
-    text width=32mm,
+    text width=31mm,
     inner sep=4pt
-  },
-  smallbox/.style={
-    nodebox,
-    minimum height=8mm,
-    text width=28mm,
-    font=\sffamily\footnotesize
   },
   widebox/.style={
     nodebox,
-    text width=42mm
+    text width=39mm
+  },
+  toolbox/.style={
+    nodebox,
+    fill=softteal,
+    draw=toolteal,
+    minimum height=8mm,
+    text width=27mm,
+    font=\sffamily\footnotesize
+  },
+  storebox/.style={
+    nodebox,
+    fill=softgreen,
+    minimum height=12mm,
+    text width=39mm
   },
   band/.style={
     draw=linegray,
@@ -50,15 +58,15 @@
     fill=softgray,
     inner sep=7pt
   },
-  flow/.style={
-    -{Latex[length=2.2mm]},
-    draw=linegray,
-    line width=0.5pt
-  },
   mainflow/.style={
     -{Latex[length=2.6mm]},
     draw=agentblue,
     line width=0.8pt
+  },
+  flow/.style={
+    -{Latex[length=2.2mm]},
+    draw=linegray,
+    line width=0.5pt
   },
   feedback/.style={
     -{Latex[length=2.2mm]},
@@ -66,71 +74,60 @@
     dashed,
     line width=0.65pt
   },
-  observe/.style={
-    -{Latex[length=2.0mm]},
-    draw=evalred,
-    dotted,
-    line width=0.7pt
-  },
   bandlabel/.style={
     font=\sffamily\footnotesize\bfseries,
     text=slate,
     anchor=west
-  },
-  subtitle/.style={font=\sffamily\scriptsize, text=slate}
+  }
 }
 
 \begin{document}
-\begin{tikzpicture}[node distance=8mm and 8mm]
+\begin{tikzpicture}
 
 % Main reasoning path.
-\node[nodebox, fill=softblue, draw=agentblue] (query)
+\node[nodebox, fill=softblue, draw=agentblue] (query) at (0,0)
   {Query\\\subtext{CVE / CWE / CAPEC / ATT\&CK}};
-\node[widebox, fill=softblue, draw=agentblue, right=of query] (planner)
+\node[widebox, fill=softblue, draw=agentblue] (planner) at (4.3,0)
   {Query Planner\\\subtext{route, decompose, choose tools}};
-\node[widebox, fill=softblue, draw=agentblue, right=of planner] (controller)
+\node[widebox, fill=softblue, draw=agentblue] (controller) at (8.9,0)
   {Agent Controller\\\subtext{budgeted evidence loop}};
-\node[widebox, fill=softviolet, draw=verifyviolet, right=of controller] (verifier)
+\node[widebox, fill=softviolet, draw=verifyviolet] (verifier) at (13.5,0)
   {Evidence Verifier\\\subtext{support, sufficiency, citations}};
-\node[widebox, fill=softviolet, draw=verifyviolet, right=of verifier] (synth)
+\node[widebox, fill=softviolet, draw=verifyviolet] (synth) at (18.1,0)
   {Grounded Synthesizer\\\subtext{cited final response}};
-\node[nodebox, fill=softred, draw=evalred, right=of synth] (answer)
+\node[nodebox, fill=softred, draw=evalred] (answer) at (22.4,0)
   {Final Answer\\\subtext{auditable citations}};
 
-\draw[mainflow] (query) -- (planner);
-\draw[mainflow] (planner) -- (controller);
-\draw[mainflow] (controller) -- (verifier);
-\draw[mainflow] (verifier) -- (synth);
-\draw[mainflow] (synth) -- (answer);
+\draw[mainflow] (query.east) -- (planner.west);
+\draw[mainflow] (planner.east) -- (controller.west);
+\draw[mainflow] (controller.east) -- (verifier.west);
+\draw[mainflow] (verifier.east) -- (synth.west);
+\draw[mainflow] (synth.east) -- (answer.west);
 
 % Tool layer.
-\node[smallbox, fill=softteal, draw=toolteal, below=13mm of controller, xshift=-48mm] (search)
-  {search\\hybrid};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of search] (open)
-  {open\\exact ID};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of open] (quote)
-  {find / quote\\section};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of quote] (summarize)
-  {summarize\\evidence};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of summarize] (compare)
-  {compare\\candidates};
+\node[toolbox] (search) at (4.8,-2.0) {search\\hybrid};
+\node[toolbox] (open) at (8.2,-2.0) {open\\exact ID};
+\node[toolbox] (quote) at (11.6,-2.0) {find / quote\\section};
+\node[toolbox] (summarize) at (15.0,-2.0) {summarize\\evidence};
+\node[toolbox] (compare) at (18.4,-2.0) {compare\\candidates};
 
 \begin{pgfonlayer}{background}
 \node[band, fit=(search)(open)(quote)(summarize)(compare)] (toolband) {};
 \end{pgfonlayer}
 \node[bandlabel] at ($(toolband.north west)+(2mm,-2mm)$) {Tool-Using Retrieval Agent};
 
-\draw[mainflow] (controller.south) -- ++(0,-4mm) -| (open.north);
-\draw[flow] (quote.north) -- ++(0,6mm) -| (verifier.south);
+\coordinate (toolentry) at (8.9,-1.34);
+\draw[mainflow] (controller.south) -- (toolentry);
+\draw[flow] (quote.north) -- ++(0,6mm) -- ++(1.2,0) -- (verifier.south);
 
 % Retrieval and knowledge substrate.
-\node[widebox, fill=softgreen, draw=retrievalgreen, below=16mm of search, xshift=9mm] (hybrid)
+\node[storebox, draw=retrievalgreen] (hybrid) at (4.8,-4.6)
   {Hybrid Retrieval\\\subtext{BM25 + dense vectors + reranking}};
-\node[widebox, fill=softgreen, draw=retrievalgreen, right=7mm of hybrid] (hierarchy)
-  {Hierarchical Index\\\subtext{corpus to document to section to passage}};
-\node[widebox, fill=softgreen, draw=graphorange, right=7mm of hierarchy] (graph)
+\node[storebox, draw=retrievalgreen] (hierarchy) at (9.4,-4.6)
+  {Hierarchical Index\\\subtext{corpus $\rightarrow$ document $\rightarrow$ section $\rightarrow$ passage}};
+\node[storebox, draw=graphorange] (graph) at (14.0,-4.6)
   {Graph Layer\\\subtext{entities, relations, claims, contradictions}};
-\node[widebox, fill=softgray, draw=slate, right=7mm of graph] (memory)
+\node[storebox, fill=softgray, draw=slate] (memory) at (18.6,-4.6)
   {Memory Layer\\\subtext{prior searches, summaries, failed paths}};
 
 \begin{pgfonlayer}{background}
@@ -138,25 +135,27 @@
 \end{pgfonlayer}
 \node[bandlabel] at ($(knowledgeband.north west)+(2mm,-2mm)$) {Retrieval, Knowledge, and Memory Substrate};
 
+% Tool outputs are routed in straight columns.
 \draw[flow] (search.south) -- (hybrid.north);
-\draw[flow] (open.south) -- (hierarchy.north);
-\draw[flow] (quote.south) -- (hierarchy.north);
-\draw[flow] (summarize.south) -- (memory.north);
-\draw[flow] (compare.south) -- (graph.north);
-\draw[flow] (hybrid) -- (hierarchy);
-\draw[flow] (hierarchy) -- (graph);
-\draw[flow] (graph) -- (memory);
+\draw[flow] (open.south) -- ++(0,-6mm) -| (hierarchy.north);
+\draw[flow] (quote.south) -- ++(0,-6mm) -| (hierarchy.north);
+\draw[flow] (summarize.south) -- ++(0,-6mm) -| (memory.north);
+\draw[flow] (compare.south) -- ++(0,-6mm) -| (graph.north);
 
-% Feedback loops kept outside the main flow.
+\draw[flow] (hybrid.east) -- (hierarchy.west);
+\draw[flow] (hierarchy.east) -- (graph.west);
+\draw[flow] (graph.east) -- (memory.west);
+
+% Keep the main feedback loop above the pipeline where it does not cross the data plane.
 \draw[feedback] (verifier.north) -- ++(0,7mm) -|
-  node[pos=0.28, above, font=\sffamily\scriptsize, text=verifyviolet]
+  node[pos=0.25, above, font=\sffamily\scriptsize, text=verifyviolet]
   {missing or weak evidence}
   (controller.north);
 
-% Observability and evaluation sidecar.
-\node[widebox, fill=softred, draw=evalred, below=15mm of graph, xshift=-18mm] (trace)
+% Measurement sidecar.
+\node[nodebox, fill=softred, draw=evalred, text width=37mm] (trace) at (12.2,-7.25)
   {Observability Traces\\\subtext{tools, scores, evidence, decisions}};
-\node[widebox, fill=softred, draw=evalred, right=9mm of trace] (eval)
+\node[nodebox, fill=softred, draw=evalred, text width=37mm] (eval) at (17.0,-7.25)
   {Evaluation Harness\\\subtext{golden, synthetic, adversarial, human review}};
 
 \begin{pgfonlayer}{background}
