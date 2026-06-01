@@ -1,0 +1,143 @@
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
+
+\definecolor{agentblue}{HTML}{2563EB}
+\definecolor{retrievalgreen}{HTML}{15803D}
+\definecolor{graphorange}{HTML}{C2410C}
+\definecolor{verifyviolet}{HTML}{7C3AED}
+\definecolor{memoryslate}{HTML}{475569}
+\definecolor{evalred}{HTML}{B91C1C}
+\definecolor{softgray}{HTML}{F8FAFC}
+\definecolor{linegray}{HTML}{64748B}
+
+\tikzset{
+  font=\sffamily,
+  box/.style={
+    draw=linegray,
+    rounded corners=2pt,
+    fill=white,
+    align=center,
+    minimum height=9mm,
+    text width=34mm,
+    inner sep=5pt
+  },
+  widebox/.style={
+    box,
+    text width=46mm
+  },
+  store/.style={
+    box,
+    fill=softgray,
+    text width=38mm
+  },
+  group/.style={
+    draw=linegray,
+    rounded corners=3pt,
+    fill=softgray,
+    inner sep=8pt
+  },
+  flow/.style={
+    -{Latex[length=2.2mm]},
+    draw=linegray,
+    line width=0.45pt
+  },
+  strongflow/.style={
+    -{Latex[length=2.4mm]},
+    draw=agentblue,
+    line width=0.75pt
+  },
+  feedback/.style={
+    -{Latex[length=2.2mm]},
+    draw=verifyviolet,
+    dashed,
+    line width=0.55pt
+  },
+  label/.style={
+    align=center,
+    font=\sffamily\footnotesize\bfseries
+  }
+}
+
+\begin{document}
+\begin{tikzpicture}[node distance=8mm and 10mm]
+
+% User and agent control loop
+\node[box, fill=agentblue!8, draw=agentblue] (query) {User / Benchmark Query\\{\footnotesize CVE, CWE, CAPEC, ATT\&CK}};
+\node[widebox, fill=agentblue!8, draw=agentblue, right=of query] (planner) {Query Planner\\{\footnotesize route, decompose, choose tools}};
+\node[widebox, fill=agentblue!8, draw=agentblue, right=of planner] (controller) {Agent Controller\\{\footnotesize bounded loop, budget, stopping rule}};
+
+% Tool layer
+\node[box, below=12mm of planner, xshift=-26mm] (search) {search\\{\footnotesize hybrid retrieval}};
+\node[box, right=6mm of search] (open) {open\\{\footnotesize exact ID / document}};
+\node[box, right=6mm of open] (find) {find / quote\\{\footnotesize section evidence}};
+\node[box, right=6mm of find] (compare) {summarize / compare\\{\footnotesize candidate synthesis}};
+\node[group, fit=(search)(open)(find)(compare), label={[label, yshift=-1mm]above:Tool-Using Retrieval Agent}] (tools) {};
+
+% Retrieval stack
+\node[store, below=15mm of search, xshift=-18mm, draw=retrievalgreen] (bm25) {Sparse Retrieval\\{\footnotesize BM25 / lexical / IDs}};
+\node[store, right=7mm of bm25, draw=retrievalgreen] (dense) {Dense Retrieval\\{\footnotesize BGE embeddings}};
+\node[store, right=7mm of dense, draw=retrievalgreen] (rerank) {Reranker\\{\footnotesize cross-encoder / listwise}};
+\node[group, fit=(bm25)(dense)(rerank), draw=retrievalgreen, label={[label, text=retrievalgreen, yshift=-1mm]above:Hybrid Retrieval}] (retrieval) {};
+
+% Hierarchical corpus
+\node[store, below=14mm of dense, text width=58mm] (hierarchy) {Hierarchical Corpus Index\\{\footnotesize corpus $\rightarrow$ document $\rightarrow$ section $\rightarrow$ passage $\rightarrow$ sentence/table}};
+
+% Graph and memory
+\node[store, below=14mm of bm25, draw=graphorange] (graph) {Graph Layer\\{\footnotesize entities, relations, citations, claims, contradictions}};
+\node[store, below=14mm of rerank, draw=memoryslate] (memory) {Memory Layer\\{\footnotesize prior searches, useful summaries, failed paths, user preferences}};
+
+% Verification and synthesis
+\node[widebox, right=16mm of controller, fill=verifyviolet!8, draw=verifyviolet] (verifier) {Evidence Verifier\\{\footnotesize support, sufficiency, citation checks}};
+\node[widebox, below=12mm of verifier, fill=verifyviolet!8, draw=verifyviolet] (synth) {Grounded Synthesizer\\{\footnotesize answer with citations}};
+\node[box, above=12mm of verifier, fill=white, draw=evalred] (answer) {Final Answer\\{\footnotesize cited, auditable}};
+
+% Observability / evaluation
+\node[store, below=18mm of controller, xshift=35mm, draw=evalred, text width=48mm] (trace) {Observability Traces\\{\footnotesize tool calls, retrieved chunks, scores, decisions, citations}};
+\node[store, below=12mm of trace, draw=evalred, text width=48mm] (eval) {Evaluation Harness\\{\footnotesize golden data, synthetic questions, adversarial tests, human review}};
+
+% Flows
+\draw[strongflow] (query) -- (planner);
+\draw[strongflow] (planner) -- (controller);
+\draw[strongflow] (controller) -- (tools.north);
+
+\draw[flow] (search) -- (bm25);
+\draw[flow] (search) -- (dense);
+\draw[flow] (bm25) -- (rerank);
+\draw[flow] (dense) -- (rerank);
+\draw[flow] (open) |- (hierarchy);
+\draw[flow] (find) |- (hierarchy);
+\draw[flow] (compare) |- (memory);
+\draw[flow] (rerank) -- (hierarchy);
+\draw[flow] (hierarchy) -- (graph);
+\draw[flow] (hierarchy) -- (memory);
+\draw[flow] (graph) -| (open);
+\draw[flow] (memory) -| (planner);
+
+\draw[strongflow] (tools.east) -- ++(6mm,0) |- (verifier.west);
+\draw[strongflow] (verifier) -- (synth);
+\draw[strongflow] (synth) -- (answer);
+
+\draw[feedback] (verifier.west) -- ++(-7mm,0) |- node[pos=0.25, left, font=\footnotesize, text=verifyviolet] {missing / weak evidence} (controller.south);
+\draw[feedback] (synth.west) -- ++(-8mm,0) |- node[pos=0.25, left, font=\footnotesize, text=verifyviolet] {claim needs support} (find.east);
+
+\draw[flow] (controller) -- (trace);
+\draw[flow] (tools) -- (trace);
+\draw[flow] (verifier) -- (trace);
+\draw[flow] (synth) -- (trace);
+\draw[flow] (trace) -- (eval);
+\draw[flow] (eval.west) -- ++(-10mm,0) |- node[pos=0.25, left, font=\footnotesize, text=evalred] {ablation results} (planner.south);
+
+% Current implementation marker
+\node[draw=linegray, rounded corners=2pt, fill=white, align=left, font=\footnotesize, text width=64mm,
+      below=8mm of eval] (legend) {
+  \textbf{Prototype status.}
+  Implemented now: tool loop, exact open, lexical search, graph expansion,
+  facet verifier, traces, CTI-RCM evaluation harness.
+  Next: dense retrieval, reranking, LLM synthesis, memory, and claim graph.
+};
+
+\end{tikzpicture}
+\end{document}
