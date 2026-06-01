@@ -2,7 +2,9 @@
 
 ## Agentic RAG Architecture
 
-`agentic_rag_architecture.tex` is an Overleaf-ready standalone TikZ figure.
+`agentic_rag_architecture.tex` is the staged workflow version. `agentic_rag_architecture_layered.tex`
+is the original layered version that matches the easier-to-read architecture style used in the
+compiled `agentic_rag_architecture.pdf`.
 
 Compile by itself:
 
