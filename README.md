@@ -3,6 +3,21 @@
 Local graph-augmented hybrid retrieval-augmented generation (RAG) for cyber threat
 intelligence, evaluated on CVE-to-CWE root-cause mapping.
 
+## Agentic RAG Prototype
+
+This repository now includes an early second-paper scaffold under `agentic_rag/`.
+It runs an explicit evidence-gathering loop over the local CTI corpus with tools for
+search, exact ID opening, graph expansion, and text finding. The first version is
+dependency-light and extractive so the agent controller can be tested before adding
+local vLLM synthesis.
+
+```bash
+python3 -m agentic_rag "What CWE underlies CAPEC-98?"
+python3 -m unittest tests/test_agentic_rag.py
+```
+
+Design notes live in `research/agentic_rag_architecture.md`.
+
 CTI-RAG maps a CVE description to its root-cause CWE identifier by retrieving public
 vulnerability knowledge at inference time — the NIST NVD CVE corpus and the official
 MITRE CWE corpus — rather than relying on cybersecurity-specialized model weights. The
