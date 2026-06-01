@@ -128,8 +128,10 @@
 \draw[arrow] (verify) -- (repair);
 \draw[arrow] (repair) -- (synth);
 \draw[arrow] (synth) -- (answer);
-\coordinate (feedbackwest) at ($(stage2.west)+(-7mm,0)$);
-\draw[feedback, route] (repair.south) -- ++(0,-5mm) -| (feedbackwest |- repair.south) |- (search.west);
+\coordinate (feedbackwest) at ($(stage2.west)+(-6mm,0)$);
+\coordinate (feedbacksouth) at ($(stage3.south)+(0,4mm)$);
+\draw[feedback, route] (repair.south) -- (repair.south |- feedbacksouth)
+  -| (feedbackwest |- feedbacksouth) |- (search.west);
 
 % ---------------------------------------------------------------------------
 % 4. Observability and evaluation
@@ -151,11 +153,11 @@
 
 % Side grouping labels, matching the staged style of the reference figure.
 \draw[decorate, decoration={brace, amplitude=7pt}, line width=0.7pt, draw=ink]
-  ($(stage1.north west)+(-8mm,0)$) -- ($(stage3.south west)+(-8mm,0)$)
+  ($(stage1.north west)+(-16mm,0)$) -- ($(stage3.south west)+(-16mm,0)$)
   node[midway, left=10mm, side label] {Agentic RAG\\Operation};
 
 \draw[decorate, decoration={brace, amplitude=7pt}, line width=0.7pt, draw=ink]
-  ($(stage4.north west)+(-8mm,0)$) -- ($(stage4.south west)+(-8mm,0)$)
+  ($(stage4.north west)+(-16mm,0)$) -- ($(stage4.south west)+(-16mm,0)$)
   node[midway, left=10mm, side label] {Evaluation\\and Analysis};
 
 \end{tikzpicture}
