@@ -6,10 +6,6 @@ and the core research goal is to measure whether the agent retrieves the **corre
 path** (e.g. ATT&CK technique → CAPEC attack pattern → CWE weakness), not merely whether it
 produces a plausible final answer.
 
-> This repository was seeded from an earlier, **separate** project (CTI-RAG, a CVE-to-CWE
-> root-cause mapping system). That work is not part of this project — it lives in the `upstream`
-> repo (`Sundarith/CTI-RAG`) and in git history. Everything here is the new agentic system.
-
 ## What it is
 
 A reasoning LLM (IBM Granite-4.1-8B via a local vLLM endpoint) drives a **ReAct-style tool loop**
