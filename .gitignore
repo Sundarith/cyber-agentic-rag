@@ -28,6 +28,7 @@ docs/
 
 # Paper/presentation deliverables — research artifacts, not project code
 presentation/
+research/figures/
 
 # Local eval/debug outputs
 eval_*.log
