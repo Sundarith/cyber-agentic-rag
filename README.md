@@ -6,11 +6,9 @@ and the core research goal is to measure whether the agent retrieves the **corre
 path** (e.g. ATT&CK technique → CAPEC attack pattern → CWE weakness), not merely whether it
 produces a plausible final answer.
 
-> **Lineage.** This project descends from **CTI-RAG**, a graph-augmented hybrid RAG system for
-> CVE-to-CWE root-cause mapping (Phi-4-mini-reasoning, 90.9% on CTI-Bench CTI-RCM). That is a
-> separate, earlier project; its result is summarized under
-> [Predecessor](#predecessor-cti-rag-cve-to-cwe) below. The agentic system here is the current
-> line of work.
+> This repository was seeded from an earlier, **separate** project (CTI-RAG, a CVE-to-CWE
+> root-cause mapping system). That work is not part of this project — it lives in the `upstream`
+> repo (`Sundarith/CTI-RAG`) and in git history. Everything here is the new agentic system.
 
 ## What it is
 
@@ -86,53 +84,15 @@ corpus is loaded in this repo.
 
 ## Requirements
 
-- Python 3.13 (local); legacy/predecessor flows may need a Python 3.11 env.
+- Python 3.13 (local).
 - PyTorch 2.10.0+cu128, vLLM 0.19.x, NumPy 2.2.6.
 - Default LLM: `ibm-granite/granite-4.1-8b`. A single RTX 4090 (24 GB) is sufficient.
 
 ## Sources
 
-MITRE ATT&CK, MITRE CAPEC, MITRE CWE. (The predecessor below also used NVD CVE data and
-CTI-Bench / CTI-RCM.)
+MITRE ATT&CK, MITRE CAPEC, MITRE CWE.
 
 ## License
 
 MIT
 
----
-
-## Predecessor: CTI-RAG (CVE-to-CWE)
-
-The earlier project (the system name is **Graph-Augmented Hybrid RAG**) maps a CVE description to
-its root-cause CWE by retrieving public vulnerability knowledge at inference time (NIST NVD + MITRE
-CWE) rather than relying on cybersecurity-specialized model weights — a single 3.8B general-purpose
-model, no domain pre-training, no task fine-tuning, one LLM call per query.
-
-On CTI-Bench CTI-RCM (1,000 CVE-to-CWE prompts, strict CWE-ID match):
-
-| System | CTI-RCM | Setup |
-| --- | ---: | --- |
-| **CTI-RAG (Phi-4-mini-reasoning + RAG)** | **90.9%** | 3.8B general model, single RTX 4090, RAG over public NVD/MITRE |
-| RoBERTa-base CVE-to-CWE | 75.6% | open, fine-tuned classifier |
-| Foundation-Sec-8B-R (Cisco) | 75.3% | open, cybersecurity continued pre-training |
-| GPT-4 | 72.0% | closed frontier, no retrieval |
-
-The result is attributable to the retrieval pipeline, not one model — four compact open models all
-become competitive once paired with it:
-
-| Primary model | Zero-shot | + RAG |
-| --- | ---: | ---: |
-| Phi-4-mini-reasoning (3.8B, shipped) | 17.9% | **90.9%** |
-| Gemma 4 E4B (thinking) | 69.6% | 90.3% |
-| IBM Granite 4.1-8B | 63.6% | 85.6% |
-| DeepSeek-R1-Distill-Llama-8B | 25.7% | 82.1% |
-
-Predecessor pipeline (one final-answer LLM call): hybrid BM25 + BGE-small retrieval → 1-hop CWE
-graph expansion → NVD bridge injection (mapped CVEs) or weighted k-NN CWE voting with cross-encoder
-reranking (unmapped CVEs). Graph edges came only from structured NVD `cwe_ids` and the MITRE CWE
-hierarchy, never from CVE prose.
-
-Full predecessor documentation (reproduction commands, data layout, rebuild scripts, the
-`better_rag.py` / `eval_rcm.py` workflow, conda `cyber-ft` env) is preserved in git history at the
-pre-agentic README (commit `5d931d9`) and in the predecessor repo (`upstream` →
-`Sundarith/CTI-RAG`).
