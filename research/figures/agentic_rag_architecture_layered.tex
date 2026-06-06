@@ -48,7 +48,8 @@
     draw=linegray,
     rounded corners=4pt,
     fill=softgray,
-    inner sep=7pt
+    inner xsep=7pt,
+    inner ysep=11pt
   },
   flow/.style={
     -{Latex[length=2.2mm]},
@@ -72,10 +73,18 @@
     dotted,
     line width=0.7pt
   },
+  flowlabel/.style={
+    font=\sffamily\scriptsize,
+    text=slate,
+    fill=white,
+    inner sep=1.2pt
+  },
   bandlabel/.style={
     font=\sffamily\footnotesize\bfseries,
     text=slate,
-    anchor=west
+    anchor=east,
+    align=right,
+    text width=31mm
   },
   subtitle/.style={font=\sffamily\scriptsize, text=slate}
 }
@@ -110,18 +119,27 @@
   {open\\exact ID};
 \node[smallbox, fill=softteal, draw=toolteal, right=5mm of open] (quote)
   {find / quote\\section};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of quote] (summarize)
-  {summarize\\evidence};
-\node[smallbox, fill=softteal, draw=toolteal, right=5mm of summarize] (compare)
+\node[smallbox, fill=softteal, draw=toolteal, right=5mm of quote] (compare)
   {compare\\candidates};
+\node[smallbox, fill=softteal, draw=toolteal, right=5mm of compare] (summarize)
+  {summarize\\evidence};
 
 \begin{pgfonlayer}{background}
 \node[band, fit=(search)(open)(quote)(summarize)(compare)] (toolband) {};
 \end{pgfonlayer}
-\node[bandlabel] at ($(toolband.north west)+(2mm,-2mm)$) {Tool-Using Retrieval Agent};
+\node[bandlabel] at ($(toolband.west)+(-4mm,0)$) {Tool-Using\\Retrieval Agent};
 
-\draw[mainflow] (controller.south) -- ++(0,-4mm) -| (open.north);
-\draw[flow] (quote.north) -- ++(0,6mm) -| (verifier.south);
+\coordinate (toolCallTurn) at ($(controller.south)+(0,-4mm)$);
+\coordinate (toolCallDrop) at (search.north |- toolCallTurn);
+\draw[mainflow] (controller.south) -- (toolCallTurn)
+  -- node[flowlabel, above] {tool calls} (toolCallDrop)
+  -- (search.north);
+\draw[flow] (search) -- (open);
+\draw[flow] (open) -- (quote);
+\draw[flow] (quote) -- (compare);
+\draw[flow] (compare) -- (summarize);
+\draw[flow] (summarize.north) -- ++(0,6mm)
+  -| node[flowlabel, near end, above] {ranked evidence} (verifier.south);
 
 % Retrieval and knowledge substrate.
 \node[widebox, fill=softgreen, draw=retrievalgreen, below=16mm of search, xshift=9mm] (hybrid)
@@ -136,13 +154,15 @@
 \begin{pgfonlayer}{background}
 \node[band, fit=(hybrid)(hierarchy)(graph)(memory)] (knowledgeband) {};
 \end{pgfonlayer}
-\node[bandlabel] at ($(knowledgeband.north west)+(2mm,-2mm)$) {Retrieval, Knowledge, and Memory Substrate};
+\node[bandlabel] at ($(knowledgeband.west)+(-4mm,0)$) {Retrieval, Knowledge,\\and Memory Substrate};
 
-\draw[flow] (search.south) -- (hybrid.north);
-\draw[flow] (open.south) -- (hierarchy.north);
-\draw[flow] (quote.south) -- (hierarchy.north);
-\draw[flow] (summarize.south) -- (memory.north);
-\draw[flow] (compare.south) -- (graph.north);
+\coordinate (hierarchyOpenTarget) at ($(hierarchy.north)+(-8mm,0)$);
+\coordinate (hierarchyQuoteTarget) at ($(hierarchy.north)+(8mm,0)$);
+\draw[flow] (search.south) -- ++(0,-6mm) -| (hybrid.north);
+\draw[flow] (open.south) -- ++(0,-6mm) -| (hierarchyOpenTarget);
+\draw[flow] (quote.south) -- ++(0,-6mm) -| (hierarchyQuoteTarget);
+\draw[flow] (compare.south) -- ++(0,-6mm) -| (graph.north);
+\draw[flow] (summarize.south) -- ++(0,-6mm) -| (memory.north);
 \draw[flow] (hybrid) -- (hierarchy);
 \draw[flow] (hierarchy) -- (graph);
 \draw[flow] (graph) -- (memory);
@@ -162,7 +182,7 @@
 \begin{pgfonlayer}{background}
 \node[band, fit=(trace)(eval)] (evalband) {};
 \end{pgfonlayer}
-\node[bandlabel] at ($(evalband.north west)+(2mm,-2mm)$) {Measurement Layer};
+\node[bandlabel] at ($(evalband.west)+(-4mm,0)$) {Measurement\\Layer};
 
 \draw[flow] (trace) -- (eval);
 

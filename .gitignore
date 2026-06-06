@@ -16,6 +16,7 @@ data/processed/chunk_embs_augmented.npy
 
 # Third-party/local benchmark checkout
 data/cti-bench/
+data/seceval/
 
 # Local handoff/state files — not part of the public repo
 CLAUDE.md

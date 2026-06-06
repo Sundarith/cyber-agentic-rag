@@ -16,6 +16,17 @@ ID_RE = re.compile(
 )
 TOKEN_RE = re.compile(r"[a-zA-Z0-9_.-]+")
 
+# Neighbor types that carry ATT&CK -> CAPEC -> CWE path information. When
+# expanding a node, these must be returned ahead of high-degree but
+# path-irrelevant neighbors (campaigns, malware, detections, groups) so a fixed
+# expansion budget never drops the gold CAPEC/CWE. Lower rank = higher priority.
+EXPAND_TYPE_PRIORITY = {
+    "attack_pattern": 0,  # CAPEC: the ATT&CK -> CAPEC frontier
+    "weakness": 1,        # CWE: the CAPEC -> CWE frontier
+    "technique": 2,       # ATT&CK technique path node
+}
+_EXPAND_DEFAULT_PRIORITY = 9
+
 
 def tokenize(text: str) -> list[str]:
     return [tok.lower() for tok in TOKEN_RE.findall(text)]
@@ -34,6 +45,7 @@ class CorpusIndex:
         chunks: Iterable[Chunk],
         capec_to_cwe: dict[str, list[str]] | None = None,
         attack_to_capec: dict[str, list[str]] | None = None,
+        aliases: dict[str, list[str]] | None = None,
     ) -> None:
         self.chunks = list(chunks)
         self.capec_to_cwe = {k.upper(): [v.upper() for v in vals] for k, vals in (capec_to_cwe or {}).items()}
@@ -41,6 +53,14 @@ class CorpusIndex:
         self.by_identifier: dict[str, Chunk] = {
             c.identifier.upper(): c for c in self.chunks if c.identifier
         }
+        # Normalized alias phrase -> list of identifiers (e.g. CWE alternate
+        # terms). Filtered to identifiers actually present in the corpus.
+        self.aliases: dict[str, list[str]] = {}
+        for phrase, ids in (aliases or {}).items():
+            kept = [i.upper() for i in ids if i.upper() in self.by_identifier]
+            if kept:
+                self.aliases.setdefault(phrase, [])
+                self.aliases[phrase].extend(i for i in kept if i not in self.aliases[phrase])
         self._doc_tokens: list[list[str]] = [tokenize(c.text) for c in self.chunks]
         self._doc_lens = [len(toks) for toks in self._doc_tokens]
         self._avgdl = sum(self._doc_lens) / len(self._doc_lens) if self._doc_lens else 0.0
@@ -58,6 +78,7 @@ class CorpusIndex:
         paths: Iterable[Path],
         capec_to_cwe: dict[str, list[str]] | None = None,
         attack_to_capec: dict[str, list[str]] | None = None,
+        aliases: dict[str, list[str]] | None = None,
     ) -> "CorpusIndex":
         chunks: list[Chunk] = []
         for path in paths:
@@ -68,13 +89,14 @@ class CorpusIndex:
                     line = line.strip()
                     if line:
                         chunks.append(Chunk.from_json(json.loads(line)))
-        return cls(chunks, capec_to_cwe=capec_to_cwe, attack_to_capec=attack_to_capec)
+        return cls(chunks, capec_to_cwe=capec_to_cwe, attack_to_capec=attack_to_capec, aliases=aliases)
 
     @classmethod
     def default(cls, root: Path = Path(".")) -> "CorpusIndex":
         processed = root / "data" / "processed"
         capec_to_cwe = _load_relation_map(processed / "capec_cwe_relations.json", "capec_to_cwe")
         attack_to_capec = _load_relation_map(processed / "capec_attack_relations.json", "tech_to_capec")
+        aliases = _load_cwe_aliases(processed / "cwe_phrase_index.json")
         return cls.from_paths(
             [
                 processed / "attack_chunks.jsonl",
@@ -84,6 +106,7 @@ class CorpusIndex:
             ],
             capec_to_cwe=capec_to_cwe,
             attack_to_capec=attack_to_capec,
+            aliases=aliases,
         )
 
     def _build_graph(self) -> dict[str, set[str]]:
@@ -172,7 +195,11 @@ class CorpusIndex:
 
     def expand(self, identifier: str, k: int = 6) -> list[Evidence]:
         src = identifier.upper()
-        neighbors = sorted(self.graph.get(src, set()))
+        # Order neighbors by path relevance first, then alphabetically for
+        # determinism, before applying the budget. This prevents high-degree
+        # campaign/malware/detection neighbors from crowding the gold CAPEC/CWE
+        # out of the top-k window.
+        neighbors = sorted(self.graph.get(src, set()), key=self._expand_sort_key)
         evidence = []
         for dst in neighbors[:k]:
             chunk = self.by_identifier.get(dst)
@@ -181,6 +208,11 @@ class CorpusIndex:
                     Evidence(chunk=chunk, score=1.0, tool="expand", reason=f"graph neighbor of {src}")
                 )
         return evidence
+
+    def _expand_sort_key(self, dst: str) -> tuple[int, str]:
+        chunk = self.by_identifier.get(dst)
+        priority = EXPAND_TYPE_PRIORITY.get(chunk.type, _EXPAND_DEFAULT_PRIORITY) if chunk else _EXPAND_DEFAULT_PRIORITY
+        return (priority, dst)
 
     def find(self, pattern: str, k: int = 8) -> list[Evidence]:
         needle = pattern.lower()
@@ -207,6 +239,32 @@ def extract_ids(text: str) -> list[str]:
             ids.append(ident)
             seen.add(ident)
     return ids
+
+
+def _load_cwe_aliases(path: Path) -> dict[str, list[str]]:
+    """Load CWE alternate-term phrases as normalized alias -> [CWE id].
+
+    Maps phrases such as "information disclosure" -> CWE-200 so descriptive
+    natural questions resolve via the resolver's alias tier. The phrase index
+    shape is {cwe_id: {"phrases": [{"phrase": str, "sources": [...]}]}}.
+    """
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as f:
+        raw = json.load(f)
+    aliases: dict[str, list[str]] = {}
+    for cwe_id, entry in raw.items():
+        if not isinstance(entry, dict):
+            continue
+        for item in entry.get("phrases", []) or []:
+            phrase = str(item.get("phrase") or "").strip().lower()
+            phrase = re.sub(r"\s+", " ", phrase)
+            if not phrase:
+                continue
+            aliases.setdefault(phrase, [])
+            if cwe_id.upper() not in aliases[phrase]:
+                aliases[phrase].append(cwe_id.upper())
+    return aliases
 
 
 def _load_relation_map(path: Path, key: str) -> dict[str, list[str]]:
