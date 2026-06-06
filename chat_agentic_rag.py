@@ -47,9 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--evidence-budget", type=int, default=14)
     parser.add_argument(
         "--retrieval-backend",
-        choices=["lexical", "legacy_hybrid"],
+        choices=["lexical"],
         default="lexical",
-        help="Search backend. legacy_hybrid lazy-loads the legacy dense/BM25 stack.",
+        help="Search backend (lexical BM25-style over the local corpus).",
     )
     parser.add_argument(
         "--synthesizer",

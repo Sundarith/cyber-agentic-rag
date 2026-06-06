@@ -19,9 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--retrieve-k", type=int, default=8)
     parser.add_argument(
         "--retrieval-backend",
-        choices=["lexical", "legacy_hybrid"],
+        choices=["lexical"],
         default="lexical",
-        help="Search backend. legacy_hybrid lazy-loads the legacy dense/BM25 stack.",
+        help="Search backend (lexical BM25-style over the local corpus).",
     )
     parser.add_argument(
         "--synthesizer",

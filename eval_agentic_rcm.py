@@ -45,9 +45,6 @@ EVAL_MODES = (
     "agentic_lexical",
     "agentic_lexical_no_verifier",
     "agentic_lexical_no_graph",
-    "agentic_hybrid",
-    "agentic_hybrid_no_verifier",
-    "agentic_hybrid_no_graph",
 )
 
 
@@ -103,7 +100,7 @@ def extract_cwe_ids(text: str) -> list[str]:
 
 
 def retrieval_backend_for_mode(mode: str) -> str:
-    return "legacy_hybrid" if "hybrid" in mode else "lexical"
+    return "lexical"
 
 
 def build_synthesizer(args: argparse.Namespace) -> ExtractiveSynthesizer | GraniteGroundedSynthesizer:
@@ -193,9 +190,9 @@ def serialize_result(result: dict[str, Any]) -> dict[str, Any]:
 def build_agent(corpus: CorpusIndex, mode: str, args: argparse.Namespace) -> AgenticRAG:
     planner: QueryPlanner | None = None
     verifier: EvidenceVerifier | None = None
-    if mode in {"agentic_lexical_no_graph", "agentic_hybrid_no_graph"}:
+    if mode == "agentic_lexical_no_graph":
         planner = NoGraphPlanner()
-    if mode in {"agentic_lexical_no_verifier", "agentic_hybrid_no_verifier"}:
+    if mode == "agentic_lexical_no_verifier":
         verifier = NoVerifier()
     search_backend = build_search_backend(corpus, retrieval_backend_for_mode(mode))
     return AgenticRAG(

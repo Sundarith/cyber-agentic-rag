@@ -4,7 +4,7 @@ from .agent import AgenticRAG, AgenticRAGConfig
 from .corpus import CorpusIndex
 from .orchestrator import GraniteOrchestrator, OrchestratorConfig
 from .resolver import EntityResolver, ResolutionResult
-from .retrieval import LegacyHybridRetriever, LexicalRetriever, build_search_backend
+from .retrieval import LexicalRetriever, build_search_backend
 from .synthesizer import (
     DEFAULT_GRANITE_MODEL,
     GraniteGroundedSynthesizer,
@@ -23,7 +23,6 @@ __all__ = [
     "DEFAULT_GRANITE_MODEL",
     "GraniteGroundedSynthesizer",
     "GraniteStructuredSynthesizer",
-    "LegacyHybridRetriever",
     "LexicalRetriever",
     "OpenAIChatClient",
     "build_search_backend",

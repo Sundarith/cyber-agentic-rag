@@ -35,7 +35,7 @@ class AgenticRCMEvalTests(unittest.TestCase):
 
     def test_retrieval_backend_for_mode(self):
         self.assertEqual(retrieval_backend_for_mode("agentic_lexical"), "lexical")
-        self.assertEqual(retrieval_backend_for_mode("agentic_hybrid_no_graph"), "legacy_hybrid")
+        self.assertEqual(retrieval_backend_for_mode("lexical_baseline"), "lexical")
 
     def test_load_rows_and_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
