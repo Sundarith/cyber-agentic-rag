@@ -1,34 +1,48 @@
 # Agentic CTI-RAG Architecture Notes
 
-This branch starts the second-paper system as an agentic evidence-gathering layer over
-the shipped CTI-RAG corpus.
+The system is an **LLM-orchestrated agentic RAG** over local CTI (MITRE ATT&CK, CAPEC, CWE).
+A reasoning LLM (Granite-4.1-8B via vLLM) drives a bounded tool loop; the deterministic graph
+and a validation gate are tools/guardrails it calls. The research goal is to measure whether the
+agent recovers the **correct evidence path** (e.g. ATT&CK technique → CAPEC → CWE), not just whether
+it produces a plausible answer.
 
-## First Prototype
+## Control flow (the agent)
 
-The initial implementation is intentionally dependency-light:
+`GraniteOrchestrator` (`agentic_rag/orchestrator.py`) runs a ReAct loop: each step the LLM emits a
+JSON action — a tool call or a final answer; the tool executes; the observation is appended; repeat
+until the answer or the iteration budget. The LLM *chooses* the tools; nothing routes by regex.
 
-- `CorpusIndex`: lazy JSONL loader, lexical retrieval, exact ID lookup, and graph expansion.
-- `QueryPlanner`: converts a question into bounded tool actions.
-- `AgenticRAG`: executes search/open/expand/find actions, tracks evidence, and stops when verification passes.
-- `EvidenceVerifier`: checks whether the evidence covers requested facets such as CWE root cause, CAPEC attack pattern, or detection.
-- `ExtractiveSynthesizer`: emits a cited grounded draft before a generative LLM backend is introduced.
-- `eval_agentic_rcm.py`: CTI-RCM harness with strict CWE-ID scoring, per-query traces,
-  timing, evidence summaries, and NVD-mapped/unmapped filtering.
+Tools the agent chooses among:
+- `resolve` — natural name → CTI id (`EntityResolver`); auto-opens the resolved node.
+- `search` — lexical (BM25-style) search over the corpus.
+- `open` / `find` — read a node / search inside one node.
+- `expand` — walk the relation graph (the provable ATT&CK ↔ CAPEC ↔ CWE hop).
 
-This is not intended to beat the submitted one-call CTI-RCM result yet. It creates a clean
-research harness for studying when multi-step retrieval helps, when it hurts, and how much
-extra cost it introduces.
+## Guardrails (kept deterministic on purpose)
 
-## Target Research System
+- **Validation gate**: a final answer is accepted only if every cited id was retrieved and every
+  claimed path edge exists in the graph. An id-repair snaps a model typo (e.g. "T10") to the unique
+  retrieved id that forms the claimed edge, so answers stay auditable without inventing ids.
+- **Trace**: every (thought, action, observation) step is recorded, so the evidence path is
+  measurable, not just the final answer.
 
-The planned full system should compare:
+## Modes and defaults
 
-- Non-agentic hybrid RAG baseline from the submitted paper.
-- Agentic retrieval with explicit tools and stopping criteria.
-- Agentic retrieval plus graph traversal over CVE/CWE/CAPEC/ATT&CK relations.
-- Agentic retrieval plus verifier/reflection loops.
-- Agentic retrieval plus LLM synthesis with citation validation.
+- Agentic-by-default in chat/CLI (`--controller auto`): the LLM loop when the endpoint is reachable,
+  a deterministic regex-planner baseline as fallback / for offline reproducibility.
+- `EntityResolver` enables hidden-ID natural questions at technique/CAPEC/CWE entry points, forward
+  and reverse.
 
-Core metrics should include strict task accuracy, evidence recall, citation correctness,
-number of tool calls, latency, and failure recovery rate on unmapped or taxonomy-near-miss
-CVE cases.
+## Evaluation
+
+`eval_agentic_multihop.py` — controlled ATT&CK → CAPEC → CWE gold-path diagnostic; primary metric is
+evidence-path recovery (full-path recall, hop success, entity-resolution accuracy/recall@k,
+ambiguity, failure reason), alongside answer accuracy. `agentic_granite` mode runs the LLM loop
+head-to-head against the deterministic baseline on the same gold paths.
+
+## Open directions
+
+Multi-query reformulation in `search` and a context-window `summarize` tool (per the AgenticRAG
+paper, arXiv:2605.05538); a "switcher" to route simple questions to the deterministic baseline; and
+STIX-derived relation files to make threat-actor / mitigation questions *provable* (the current
+text-mention graph for those is too incomplete).

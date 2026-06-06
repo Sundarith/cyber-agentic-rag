@@ -1,7 +1,7 @@
 # Manual Evaluation Queries — Cyber Threat RAG
 
-Run interactively against `better_rag.py`. For each query, record **pass** or **fail**
-and a one-line note on what was wrong (if fail).
+Run interactively against the agentic chat (`python3 chat_agentic_rag.py`). For each query,
+record **pass** or **fail** and a one-line note on what was wrong (if fail).
 
 **Failure modes to watch for:**
 - Hallucinated technique IDs (T-numbers not in MITRE ATT&CK)
