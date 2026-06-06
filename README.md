@@ -1,307 +1,138 @@
-# CTI-RAG
+# Agentic CTI-RAG
 
-Local graph-augmented hybrid retrieval-augmented generation (RAG) for cyber threat
-intelligence, evaluated on CVE-to-CWE root-cause mapping.
+An agentic retrieval-augmented generation system over local cyber threat intelligence
+(MITRE ATT&CK, CAPEC, CWE). A reasoning LLM drives a bounded tool loop to gather evidence,
+and the core research goal is to measure whether the agent retrieves the **correct evidence
+path** (e.g. ATT&CK technique → CAPEC attack pattern → CWE weakness), not merely whether it
+produces a plausible final answer.
 
-## Agentic RAG Prototype
+> **Lineage.** This project descends from **CTI-RAG**, a graph-augmented hybrid RAG system for
+> CVE-to-CWE root-cause mapping (Phi-4-mini-reasoning, 90.9% on CTI-Bench CTI-RCM). That is a
+> separate, earlier project; its result is summarized under
+> [Predecessor](#predecessor-cti-rag-cve-to-cwe) below. The agentic system here is the current
+> line of work.
 
-This repository now includes an early second-paper scaffold under `agentic_rag/`.
-It runs an explicit evidence-gathering loop over the local CTI corpus with tools for
-search, exact ID opening, graph expansion, and text finding. The first version is
-dependency-light and extractive so the agent controller can be tested before adding
-local vLLM synthesis.
+## What it is
+
+A reasoning LLM (IBM Granite-4.1-8B via a local vLLM endpoint) drives a **ReAct-style tool loop**
+over the CTI corpus and relation graph. Each step the model *chooses* a tool; the tools execute
+deterministically; a validation gate checks the final answer before it is asserted.
+
+Tools the agent chooses among:
+- `resolve` — natural name → CTI id ("Process Discovery" → `T1057`)
+- `search` — lexical (BM25) search over the corpus
+- `open` — read a node by id
+- `find` — search inside one node
+- `expand` — walk the relation graph (the provable ATT&CK ↔ CAPEC ↔ CWE hop)
+
+Design:
+- **Granite orchestrates** (chooses tools each step); the graph traversal and the
+  **answer-validation gate** are deterministic tools/guardrails it calls. Cited ids must be
+  retrieved and claimed path edges must exist in the graph, so answers stay auditable. A small
+  id-repair snaps a model id-typo to the unique retrieved id that forms the claimed edge.
+- **Agentic-by-default**: chat and CLI use the LLM loop when the endpoint is reachable and fall
+  back to a deterministic regex baseline when it is not.
+- A standalone `EntityResolver` enables natural, no-ID questions (technique/CAPEC/CWE name,
+  forward or reverse).
+
+Key code: `agentic_rag/orchestrator.py` (the controller), `agentic_rag/resolver.py`,
+`agentic_rag/agent.py`; architecture figure under `research/figures/`.
+
+## Quick start
+
+Serve the LLM endpoint (cap the context — Granite's 131072 default OOMs the KV cache on a 24GB GPU):
 
 ```bash
-python3 -m agentic_rag "What CWE underlies CAPEC-98?"
-python3 -m unittest tests/test_agentic_rag.py
+CUDA_VISIBLE_DEVICES=0 vllm serve ibm-granite/granite-4.1-8b \
+  --served-model-name ibm-granite/granite-4.1-8b \
+  --max-model-len 8192 --gpu-memory-utilization 0.92 \
+  --enable-prefix-caching --trust-remote-code --port 8000
 ```
 
-Run the prototype CTI-RCM evaluation harness after adding the local CTI-Bench checkout:
+Then chat (agentic-by-default; falls back to deterministic if the endpoint is down):
 
 ```bash
-python3 eval_agentic_rcm.py 100 --trace-log logs/agentic_rcm_sample.jsonl
+python3 chat_agentic_rag.py
+# or one-shot:
+python3 -m agentic_rag "For Process Discovery, which CWE is reached via its CAPEC?"
 ```
 
-Design notes live in `research/agentic_rag_architecture.md`.
+Run the tests (offline, no endpoint needed):
 
-CTI-RAG maps a CVE description to its root-cause CWE identifier by retrieving public
-vulnerability knowledge at inference time — the NIST NVD CVE corpus and the official
-MITRE CWE corpus — rather than relying on cybersecurity-specialized model weights. The
-system name is **Graph-Augmented Hybrid RAG**.
-
-## Result
-
-On the CTI-Bench CTI-RCM benchmark (1,000 CVE-to-CWE prompts, strict CWE-ID match),
-the shipped configuration scores **90.9% (909/1000)** using a single 3.8B-parameter
-general-purpose model — **Phi-4-mini-reasoning** — with no cybersecurity continued
-pre-training, no task-specific fine-tuning, and exactly one LLM call per query.
-
-| Subset | Score |
-| --- | ---: |
-| All 1,000 queries | **90.9%** (909/1000) |
-| NVD-mapped CVEs | 92.7% (837/903) |
-| NVD-unmapped CVEs | 74.2% (72/97) |
-
-This surpasses the published GPT-4 no-retrieval baseline by 18.9 pp and the strongest
-published open-source baseline by 15.3 pp, using less than half the parameter count of
-every other open-source LLM on the leaderboard.
-
-| System | CTI-RCM | Setup |
-| --- | ---: | --- |
-| **Ours (Phi-4-mini-reasoning + RAG)** | **90.9%** | 3.8B general-purpose model, single RTX 4090, RAG over public NVD/MITRE data |
-| Sec-Gemini v1 (Google) | ~86% † | closed, self-reported |
-| SecLM (Google) | ~85% † | closed, self-reported |
-| RoBERTa-base CVE-to-CWE | 75.6% | open, fine-tuned classifier |
-| Foundation-Sec-8B-R (Cisco) | 75.3% | open, cybersecurity continued pre-training |
-| GPT-4 | 72.0% | closed frontier, no retrieval |
-
-† self-reported; not independently evaluated on the public split.
-
-### RAG Carries the Result (Model-Independence)
-
-The headline is attributable to the retrieval pipeline, not to any one model. Under the
-same benchmark-clean context-only prompt, four open-source compact models from distinct
-post-training regimes — none with cybersecurity training or task fine-tuning — all become
-competitive once paired with the pipeline:
-
-| Primary model | Zero-shot | + RAG | RAG buys |
-| --- | ---: | ---: | ---: |
-| Phi-4-mini-reasoning (3.8B, shipped) | 17.9% | **90.9%** | +73.0 pp |
-| Gemma 4 E4B (thinking on) | 69.6% | 90.3% | +20.7 pp |
-| IBM Granite 4.1-8B (RAG-tuned instruct) | 63.6% | 85.6% | +22.0 pp |
-| DeepSeek-R1-Distill-Llama-8B | 25.7% | 82.1% | +56.4 pp |
-
-Every with-RAG row beats GPT-4 (72.0%) and the strongest fine-tuned open-source
-specialist (75.6%). The choice of retrieval pipeline shifts the result by tens to
-hundreds of cases; the choice of LLM only shifts it by a few.
-
-This is not an apples-to-apples model comparison: CTI-RAG retrieves over public security
-data, while the GPT-4 number is a no-retrieval baseline. It is operationally meaningful —
-security teams have NVD and MITRE data available, and the benchmark tests whether a system
-can use that evidence reliably.
-
-## Why This Exists
-
-CVE-to-CWE mapping determines how analysts group vulnerabilities, select mitigations, and
-prioritize remediation. Errors propagate into downstream analysis. Proprietary frontier
-models can do the mapping but require paid API access and transmitting vulnerability data
-to a third party; security-specialized open models narrow the gap through expensive
-domain pre-training. CTI-RAG asks a different question: how far can a compact, off-the-shelf,
-locally-served model go when it simply *reads* authoritative public CVE/CWE evidence at
-inference time, with no domain or task post-training of the generator?
-
-## Architecture
-
-```text
-CTI-Bench prompt (CVE description)
-  |
-  v
-Hybrid retrieval
-  - BM25 lexical scoring + BGE-small dense similarity
-  - equal weights, top_k = 8
-  |
-  v
-1-hop knowledge-graph expansion
-  - NVD bridge edges:   CVE -> NVD-assigned CWE(s)
-  - CWE hierarchy edges: child <-> parent (MITRE CWE taxonomy)
-  - top 5 neighbours re-scored and added to context
-  |
-  +-- NVD-mapped CVE --> Bridge injection (fast path)
-  |     - inject the structured NVD-assigned CWE chunk(s)
-  |     - strip competing CWE chunks
-  |
-  +-- NVD-unmapped CVE --> Weighted k-NN CWE voting
-  |     - 5 nearest mapped-CVE neighbours, similarity-weighted
-  |     - authoritative if top share >= 0.90 and margin >= 1.50,
-  |       otherwise top-3 added as soft evidence
-  |     - BGE-Reranker-Base cross-encoder reranking
-  |
-  v
-Single final-answer LLM call (Phi-4-mini-reasoning via vLLM)
+```bash
+python3 -m unittest discover -s tests
 ```
 
-Graph edges come only from structured NVD `cwe_ids` and the MITRE CWE hierarchy; CWE
-identifiers mentioned in CVE prose are deliberately not treated as edges. The two
-execution paths converge on exactly one final-answer call — no second model, no
-ensembling.
+## Evaluation
 
-The repository also implements broader CTI multi-hop traversal (ATT&CK / CAPEC / CWE /
-mitigation) used by the interactive chatbot; the paper and the numbers above are scoped
-to the CVE-to-CWE (CTI-RCM) task.
+- `eval_agentic_multihop.py` — controlled ATT&CK → CAPEC → CWE gold-path diagnostic; the primary
+  internal metric is **evidence-path recovery**, not just answer accuracy. Flags: `--hidden-id`
+  (name-only questions), `--entry {technique,capec,cwe}` (entry point + forward/reverse direction),
+  `--modes ... agentic_granite` (LLM-orchestrated vs the deterministic baseline).
+- `eval_agentic_rcm.py`, `eval_seceval.py` — public benchmark harnesses (CTI-RCM, SecEval).
 
-## Limits
+These gold-path numbers are internal diagnostics, not a published benchmark result.
 
-- The mapped-CVE score is largely retrieval finding the matching NVD record and reading
-  its structured CWE assignment (retrieval-as-lookup); the system commits to NVD even
-  when CTI-Bench's curator disagreed, so mapped accuracy is capped by NVD/CTI-Bench label
-  agreement rather than inflated by it.
-- The unmapped-CVE score is the stricter reasoning test: no structured NVD label exists,
-  so the system must infer the CWE from description similarity and retrieved definitions.
-- Remaining failures are dominated by CWE taxonomy near-misses (sibling / parent / child
-  confusion) and NVD-vs-CTI-Bench annotation disagreements.
-- Built for local research and reproducibility, not as a hardened production service.
+## Status
 
-## Data
+Works: the agentic loop is live-validated — Granite drives resolve → expand → expand to a
+validated `T1057 → CAPEC-573 → CWE-200`; hidden-ID natural QA at technique/CAPEC/CWE entry points,
+forward and reverse; deterministic baseline; 79 unit tests passing.
 
-The system expects public MITRE/NVD data and a local CTI-Bench clone:
-
-```text
-data/raw/enterprise-attack.json              # MITRE ATT&CK STIX bundle
-data/raw/stix-capec.json                     # CAPEC STIX bundle
-data/raw/cwec_latest.xml                     # CWE XML dataset
-data/raw/cves/cves/YYYY/                     # NVD CVE JSON files, gitignored
-data/cti-bench/                              # CTI-Bench clone
-
-data/processed/attack_chunks.jsonl           # built from ATT&CK
-data/processed/capec_chunks.jsonl            # built from CAPEC
-data/processed/cwe_chunks.jsonl              # built from CWE
-data/processed/cve_chunks.jsonl              # built from NVD, gitignored
-data/processed/cve_cwe_index.json            # CVE ID -> NVD CWE IDs
-data/processed/entity_relations.json         # Group/tool/malware relations
-data/processed/capec_attack_relations.json   # wrapper key: tech_to_capec
-data/processed/capec_cwe_relations.json      # wrapper key: capec_to_cwe
-data/processed/chunk_embs.npy                # embedding cache, gitignored
-```
-
-Large generated files are intentionally not committed.
+Not yet provable: threat-actor and mitigation questions. The graph for group/software/mitigation
+edges is incomplete (built from text mentions), so the agent can *navigate* toward an answer but
+the validation gate flags it as ungrounded — these need STIX-derived relation files first. No CVE
+corpus is loaded in this repo.
 
 ## Requirements
 
-Tested environment:
-
-- Python 3.11
-- conda environment named `cyber-ft`
-- CUDA 12.x
-- PyTorch 2.10.0+cu128
-- sentence-transformers 5.4.1
-- vLLM 0.19.x
-- Primary model: `microsoft/Phi-4-mini-reasoning` (3.8B)
-- Retriever: `BAAI/bge-small-en-v1.5`; cross-encoder: `BAAI/bge-reranker-base`
-
-All experiments run on a single NVIDIA RTX 4090 (24 GB VRAM). The bi-encoder and
-cross-encoder run on CPU so the GPU is dedicated to the vLLM LLM endpoint.
-
-## Quick Start
-
-Start the vLLM endpoint in a separate terminal. The eval harness addresses the model
-under the fixed alias `Qwen/Qwen2.5-7B-Instruct`, so the served model name is set
-accordingly regardless of which checkpoint is loaded:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 vllm serve microsoft/Phi-4-mini-reasoning \
-  --served-model-name "Qwen/Qwen2.5-7B-Instruct" \
-  --enable-prefix-caching --trust-remote-code --port 8000 \
-  --max-model-len 24576 --gpu-memory-utilization 0.90
-```
-
-Run the interactive chatbot:
-
-```bash
-conda activate cyber-ft
-python3 better_rag.py
-```
-
-## Reproduce CTI-RCM
-
-The shipped 90.9% configuration uses the context-only clean prompt with the unchanged
-CTI-Bench prompt field, scored by strict CWE-ID match:
-
-```bash
-CTI_RAG_RCM_ONLY=1 \
-CTI_RAG_PROMPT_CONTEXT_ONLY=1 \
-CTI_RAG_LLM_RESPONSE_BUDGET=2048 \
-CTI_RAG_LLM_MAX_MODEL_LEN=24576 \
-CTI_RAG_EMBEDDER_DEVICE=cpu \
-CTI_RAG_CWE_CROSSENCODER_DEVICE=cpu \
-CTI_RAG_EVAL_WORKERS=16 \
-conda run -n cyber-ft python3 -u eval_rcm.py 1000
-```
-
-- The final classification call uses the unchanged CTI-Bench `row["Prompt"]` at default
-  temperature with a single sample, so the protocol is apples-to-apples with the other
-  models reported by CTI-Bench.
-- `CTI_RAG_PROMPT_CONTEXT_ONLY=1` selects the shipped context-only clean prompt. The
-  experiment-only `CTI_RAG_PROMPT_INSTRUCTION=1` adds task framing and output-format
-  directives (reported as an ablation, not the shipped method).
-- k-NN voting defaults (`CTI_RAG_KNN_CONFIDENCE_THRESHOLD=0.90`,
-  `CTI_RAG_KNN_CONFIDENCE_MARGIN=1.50`) are the reported values and need not be set.
-- A larger response budget is used because the reasoning-distilled primary emits a
-  reasoning preamble before the final CWE-ID.
-
-The four-model comparison (Table in the paper) is reproduced by swapping the served
-model — `ibm-granite/granite-4.1-8b`, `deepseek-ai/DeepSeek-R1-Distill-Llama-8B`,
-`google/gemma-4-E4B-it` (add `CTI_RAG_LLM_ENABLE_THINKING=1` for Gemma) — and re-running
-the same eval. Zero-shot rows (no retrieval) are produced with `scripts/zero_shot_eval.py`.
-The orchestration used for the paper's lineup lives in `scripts/run_*_lineup.sh` and
-`scripts/run_*_pln_off*.sh`.
-
-Useful subset runs:
-
-```bash
-conda run -n cyber-ft python3 -u eval_rcm.py 1000 --nvd-mapped
-conda run -n cyber-ft python3 -u eval_rcm.py 1000 --nvd-unmapped
-```
-
-Notes:
-
-- Start vLLM before running evaluation.
-- The full 1,000-query benchmark takes roughly 25-30 minutes with `WORKERS=16`.
-- `--max-model-len 24576` is recommended; shorter context windows can fail on large CVE prompts.
-- The eval intentionally uses `row["Prompt"]`, not a query containing the CVE ID — a CVE-ID
-  query would turn the benchmark into a database lookup.
-- Add `--debug-failures` to write per-failure retrieval state, or `--timing-audit` for
-  per-query and per-LLM-request timing logs under `logs/`.
-
-## Rebuild Processed Data
-
-Run after changing raw source data or a chunk builder:
-
-```bash
-conda run -n cyber-ft python3 build_attack_chunks.py
-conda run -n cyber-ft python3 build_capec_chunks.py
-conda run -n cyber-ft python3 build_cwe_chunks.py
-conda run -n cyber-ft python3 build_cve_chunks.py
-```
-
-After rebuilding CVE chunks, rebuild the lightweight CVE-to-CWE index:
-
-```bash
-conda run -n cyber-ft python3 -c "
-import json
-from pathlib import Path
-index = {}
-with open('data/processed/cve_chunks.jsonl') as f:
-    for line in f:
-        d = json.loads(line)
-        index[d['identifier']] = d.get('cwe_ids', [])
-Path('data/processed/cve_cwe_index.json').write_text(json.dumps(index))
-print(f'Written {len(index):,} entries')
-"
-```
-
-If a chunk file changes, remove the embedding cache so it is rebuilt:
-
-```bash
-rm -f data/processed/chunk_embs.npy
-```
-
-## Implementation Notes
-
-- Hybrid retrieval uses BM25 plus BGE embeddings with `HYBRID_ALPHA = 0.5`.
-- Retrieval tuning constants are named at the top of `better_rag.py`.
-- Bridge JSON files have wrapper keys; use `tech_to_capec` and `capec_to_cwe`.
-- CVE-to-CWE graph edges come only from structured NVD `cwe_ids`, not from scanning CVE prose.
-- For explicit MITRE mappings, bridge injection is preferred over semantic retrieval.
-- Generated chunk files should be rebuilt with the matching `build_*.py` script, not edited by hand.
+- Python 3.13 (local); legacy/predecessor flows may need a Python 3.11 env.
+- PyTorch 2.10.0+cu128, vLLM 0.19.x, NumPy 2.2.6.
+- Default LLM: `ibm-granite/granite-4.1-8b`. A single RTX 4090 (24 GB) is sufficient.
 
 ## Sources
 
-- MITRE ATT&CK
-- MITRE CAPEC
-- MITRE CWE
-- NVD CVE data, including CNA and ADP/CISA Vulnrichment mappings
-- CTI-Bench / CTI-RCM
+MITRE ATT&CK, MITRE CAPEC, MITRE CWE. (The predecessor below also used NVD CVE data and
+CTI-Bench / CTI-RCM.)
 
 ## License
 
 MIT
+
+---
+
+## Predecessor: CTI-RAG (CVE-to-CWE)
+
+The earlier project (the system name is **Graph-Augmented Hybrid RAG**) maps a CVE description to
+its root-cause CWE by retrieving public vulnerability knowledge at inference time (NIST NVD + MITRE
+CWE) rather than relying on cybersecurity-specialized model weights — a single 3.8B general-purpose
+model, no domain pre-training, no task fine-tuning, one LLM call per query.
+
+On CTI-Bench CTI-RCM (1,000 CVE-to-CWE prompts, strict CWE-ID match):
+
+| System | CTI-RCM | Setup |
+| --- | ---: | --- |
+| **CTI-RAG (Phi-4-mini-reasoning + RAG)** | **90.9%** | 3.8B general model, single RTX 4090, RAG over public NVD/MITRE |
+| RoBERTa-base CVE-to-CWE | 75.6% | open, fine-tuned classifier |
+| Foundation-Sec-8B-R (Cisco) | 75.3% | open, cybersecurity continued pre-training |
+| GPT-4 | 72.0% | closed frontier, no retrieval |
+
+The result is attributable to the retrieval pipeline, not one model — four compact open models all
+become competitive once paired with it:
+
+| Primary model | Zero-shot | + RAG |
+| --- | ---: | ---: |
+| Phi-4-mini-reasoning (3.8B, shipped) | 17.9% | **90.9%** |
+| Gemma 4 E4B (thinking) | 69.6% | 90.3% |
+| IBM Granite 4.1-8B | 63.6% | 85.6% |
+| DeepSeek-R1-Distill-Llama-8B | 25.7% | 82.1% |
+
+Predecessor pipeline (one final-answer LLM call): hybrid BM25 + BGE-small retrieval → 1-hop CWE
+graph expansion → NVD bridge injection (mapped CVEs) or weighted k-NN CWE voting with cross-encoder
+reranking (unmapped CVEs). Graph edges came only from structured NVD `cwe_ids` and the MITRE CWE
+hierarchy, never from CVE prose.
+
+Full predecessor documentation (reproduction commands, data layout, rebuild scripts, the
+`better_rag.py` / `eval_rcm.py` workflow, conda `cyber-ft` env) is preserved in git history at the
+pre-agentic README (commit `5d931d9`) and in the predecessor repo (`upstream` →
+`Sundarith/CTI-RAG`).
